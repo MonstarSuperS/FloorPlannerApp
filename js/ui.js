@@ -88,13 +88,18 @@
     // Switching between imperial and metric moves the grid to the nearest size the new units offer.
     if (key === 'units' && FP.units.isMetric(value) !== FP.units.isMetric(s.units)) s.gridSize = FP.units.nearestGrid(s.gridSize, value);
     s[key] = value;
-    app.setDirty(true);
-    app.scheduleAutosave();
+    // While view-only these only change how the drawing is shown, so they aren't unsaved work.
+    if (app.readOnly) app.saveSession();
+    else {
+      app.setDirty(true);
+      app.scheduleAutosave();
+    }
     refreshTopBar();
     refreshInspector();
     if (key === 'units') buildLibrary(); // custom fixture sizes are listed in the current units
     app.requestRender();
     app.emit('cursor');
+    app.emit('setting'); // e.g. the viewer's card re-reads its sizes in the new units
   }
 
   function initTopBar() {
@@ -912,17 +917,21 @@
     const floor = app.floor();
     const opts = floor.options || [];
     const select = $('optionSelect');
-    const sig = JSON.stringify([floor.id, floor.option, opts.map((o) => [o.id, o.name])]);
+    const sig = JSON.stringify([floor.id, floor.option, opts.map((o) => [o.id, o.name]), app.readOnly]);
     if (sig !== designSig) {
       designSig = sig;
       select.textContent = '';
       select.append(el('option', { value: '', textContent: 'As-is' }));
       for (const o of opts) select.append(el('option', { value: o.id, textContent: o.name }));
-      select.append(el('option', { disabled: true, textContent: '──────────' }));
-      select.append(el('option', { value: '+new', textContent: '+ New option' }));
-      if (floor.option) select.append(el('option', { value: '+copy', textContent: '+ Copy of this option' }));
+      if (!app.readOnly) {
+        select.append(el('option', { disabled: true, textContent: '──────────' }));
+        select.append(el('option', { value: '+new', textContent: '+ New option' }));
+        if (floor.option) select.append(el('option', { value: '+copy', textContent: '+ Copy of this option' }));
+      }
     }
     select.value = floor.option || '';
+    // View-only, the bar is only worth showing when there's an option to look at.
+    $('designBar').hidden = app.readOnly && !opts.length;
     $('changesRow').hidden = !floor.option;
     $('tChanges').checked = app.view.changes !== false;
     $('canvasWrap').classList.toggle('in-option', !!floor.option);
@@ -1055,7 +1064,7 @@
         // objects, while a tab with the same name and state is kept.
         click: () => {
           const current = floorById(floor.id);
-          if (!current) return;
+          if (!current || app.readOnly) return;
           current.hidden = !current.hidden;
           app.commit();
         },
@@ -1113,7 +1122,7 @@
   function startRename(id) {
     const floor = floorById(id);
     const wrap = $('floorTabs').querySelector(`[data-id="${id}"]`);
-    if (!floor || !wrap || renaming) return;
+    if (!floor || !wrap || renaming || app.readOnly) return;
     renaming = id;
     const finish = (save) => {
       if (renaming !== id) return;
@@ -1147,7 +1156,7 @@
 
   // Dragging a tab reorders the floors. A press that doesn't move stays an ordinary click.
   function beginFloorDrag(e, floor) {
-    if (e.button !== 0 || renaming) return;
+    if (e.button !== 0 || renaming || app.readOnly) return;
     suppressClick = false;
     const box = $('floorTabs');
     const startX = e.clientX, startY = e.clientY;
@@ -1234,6 +1243,7 @@
     };
     $('optionSelect').onchange = (e) => {
       const v = e.target.value;
+      if (app.readOnly && v.startsWith('+')) return;
       if (v === '+new') app.openOption(null, 'new');
       else if (v === '+copy') app.openOption(null, 'copy');
       else app.openOption(v || null);
@@ -1277,6 +1287,7 @@
         refreshTopBar();
         buildLibrary();
       } else if (what === 'title') refreshTitle();
+      else if (what === 'mode') { designSig = null; refreshDesignBar(); refreshFloors(); refreshInspector(); refreshStatus(); }
       else if (what === 'tool') refreshTools();
       else if (what === 'theme') buildLibrary();
       else if (what === 'view' || what === 'cursor') { refreshStatus(); if (what === 'view') refreshStairToggle(); }

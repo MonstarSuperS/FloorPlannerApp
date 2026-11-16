@@ -267,3 +267,98 @@ dialog h3 { margin: 12px 0 6px; font-size: 12px; color: var(--muted); }
 #exPreview { display: block; max-width: 100%; border: 1px solid var(--line); background: #fff; box-shadow: 0 2px 8px rgba(20, 30, 45, 0.12); }
 .export-note { min-height: 36px; margin: 8px 0 0; max-width: 440px; font-size: 12px; color: var(--muted); }
 .export-note.warn { color: var(--danger); font-weight: 500; }
+
+/* ---------- Modes and layouts ----------
+   html.view-only: looking, measuring and exporting only (app.setMode).
+   html.compact:   the phone-sized layout (device.js).
+   They're separate so touch editing can later be compact without being view-only. */
+.view-only-ui, .compact-only { display: none !important; }
+html.view-only .view-only-ui { display: flex !important; }
+html.compact .compact-only { display: inline-block !important; }
+html.view-only .edit-only { display: none !important; }
+html.compact .full-only { display: none !important; }
+html.view-only .floor-eye { display: none; }
+html.view-only .tab { border-radius: 5px; }
+.export-note.ready { color: var(--accent); font-weight: 600; }
+
+/* The card that shows what was tapped, or a measurement. */
+#infoCard {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 10px 14px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(20, 30, 45, 0.18);
+  z-index: 2;
+}
+.info-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.info-head h2 { flex: 1; margin: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#infoClose { font-size: 22px; line-height: 1; min-width: 36px; min-height: 36px; }
+#infoRows { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+#infoRows dt { color: var(--muted); }
+#infoRows dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+#infoNote { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+
+/* Shown in view-only when nothing is open yet. */
+#emptyState {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  text-align: center;
+  background: var(--canvas);
+  z-index: 1;
+}
+#emptyState h2 { margin: 0; font-size: 18px; }
+#emptyState p { max-width: 320px; margin: 4px 0 12px; color: var(--muted); }
+
+/* ---------- Compact (phone) layout ---------- */
+html.compact, html.compact body { overscroll-behavior: none; }
+html.compact body { height: 100vh; height: 100dvh; font-size: 15px; -webkit-text-size-adjust: 100%; }
+html.compact button { touch-action: manipulation; }
+html.compact #topbar {
+  gap: 6px;
+  padding: calc(6px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) 6px calc(8px + env(safe-area-inset-left));
+}
+html.compact #topbar button { min-height: 40px; padding: 6px 12px; font-size: 15px; }
+html.compact #topbar button.icon { width: 40px; padding: 6px 0; }
+html.compact #topbar .group { gap: 6px; }
+html.compact .brand { flex: 1 1 100%; width: auto; flex-direction: row; align-items: baseline; gap: 8px; }
+html.compact .brand strong { flex: none; font-size: 16px; }
+html.compact #docName { font-size: 13px; min-width: 0; }
+/* Units and the label toggles fold into the View sheet. */
+html.compact #topbar .view-setting { display: none; }
+html.compact #topbar.show-view .view-setting { display: flex; flex: 1 1 100%; flex-wrap: wrap; }
+html.compact #topbar.show-view .view-setting.labelled > span { font-size: 13px; min-width: 44px; }
+html.compact #designBar { top: 8px; left: 8px; right: 8px; flex-wrap: wrap; font-size: 14px; }
+html.compact #designBar select { min-height: 36px; font-size: 16px; max-width: none; flex: 1; }
+html.compact #floorBar {
+  flex-wrap: nowrap;
+  padding: 6px calc(8px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
+}
+html.compact #floorTabs { flex-wrap: nowrap; overflow-x: auto; margin-right: 0; gap: 6px; scrollbar-width: none; }
+html.compact .floor-tab .tab { min-height: 40px; padding: 6px 14px; font-size: 15px; }
+html.compact #infoCard { left: calc(10px + env(safe-area-inset-left)); right: calc(10px + env(safe-area-inset-right)); font-size: 15px; }
+html.compact .info-head h2 { font-size: 17px; }
+html.compact #toast { bottom: calc(76px + env(safe-area-inset-bottom)); max-width: 90vw; }
+/* Dialogs fill the screen width; 16px text stops iPhones zooming in on a focused field. */
+html.compact dialog { width: calc(100vw - 16px); max-width: none; max-height: calc(100dvh - 16px); overflow-y: auto; padding: 14px; }
+html.compact dialog select, html.compact dialog input[type="text"] { font-size: 16px; min-height: 36px; }
+html.compact dialog button { min-height: 40px; padding: 6px 14px; }
+html.compact .export-options, html.compact .export-preview { width: auto; min-width: 0; flex: 1 1 100%; }
+html.compact #exPreview { width: 100% !important; }
+html.compact .export-note { max-width: none; }
+/* On a phone the preview and its Export button come first, the options below them. */
+html.compact .export-form { flex-direction: column; gap: 10px; }
+html.compact .export-preview { order: -1; }
+html.compact .export-preview .actions { margin-top: 8px; }
+html.compact .export-options h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

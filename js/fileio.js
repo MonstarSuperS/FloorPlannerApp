@@ -23,6 +23,35 @@
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
+  // Hands a finished export over: on a phone, the share sheet (Messages, email, Files and so
+  // on) where the browser has one; otherwise an ordinary download. Returns 'shared',
+  // 'downloaded', 'cancelled', or 'blocked' when the browser wants a fresh tap before it will
+  // open the share sheet (building a PDF can take longer than it allows), so call again from
+  // the next click.
+  async function deliver(blob, filename) {
+    const nav = root.navigator;
+    const canShareFiles = FP.device && FP.device.phone && nav && typeof nav.share === 'function' &&
+      typeof nav.canShare === 'function' && typeof File === 'function';
+    if (canShareFiles) {
+      const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+      let ok = false;
+      try { ok = nav.canShare({ files: [file] }); } catch (err) { ok = false; }
+      if (ok) {
+        try {
+          await nav.share({ files: [file], title: filename });
+          return 'shared';
+        } catch (err) {
+          if (err && err.name === 'AbortError') return 'cancelled';
+          if (err && err.name === 'NotAllowedError') return 'blocked';
+          // Anything else: the share sheet isn't usable, so download instead.
+        }
+      }
+    }
+    // Through the module's own entry, so tests can stand in for a real download.
+    FP.fileio.download(blob, filename);
+    return 'downloaded';
+  }
+
   function markSaved(name) {
     app.fileName = name;
     app.doc.name = baseName(name);
@@ -232,16 +261,32 @@
     return true;
   }
 
+  // Drawings are a few megabytes at most. Anything far bigger is something else picked by
+  // mistake (easy on a phone, whose picker shows every file), so it's refused unread.
+  const MAX_FILE_BYTES = 50 * 1024 * 1024;
+  async function openFile(file, handle) {
+    if (file.size > MAX_FILE_BYTES) {
+      app.toast(`${file.name} is too big to be a FloorPlanner drawing.`, true);
+      return false;
+    }
+    return loadText(await file.text(), handle, file.name);
+  }
+
   const okToDiscard = () => !app.dirty || window.confirm('You have unsaved changes. Discard them?');
 
   async function open() {
     if (!okToDiscard()) return;
-    if (typeof window.showOpenFilePicker === 'function') {
+    // Phones skip the file system picker: Android's version filters by file type, doesn't
+    // know .fplan, and so shows drawings but won't let them be picked. The plain picker below
+    // is unfiltered there.
+    const phone = !!(FP.device && FP.device.phone);
+    if (!phone && typeof window.showOpenFilePicker === 'function') {
       try {
-        // Asking for write access now lets auto-save work without interrupting later.
-        const [handle] = await window.showOpenFilePicker({ types: PICKER_TYPES, mode: 'readwrite' });
+        // Editing asks for write access now, so auto-save works without interrupting later.
+        // View-only only reads, and keeps no link to the file, so it can never write to it.
+        const [handle] = await window.showOpenFilePicker({ types: PICKER_TYPES, mode: app.readOnly ? 'read' : 'readwrite' });
         const file = await handle.getFile();
-        loadText(await file.text(), handle, file.name);
+        await openFile(file, app.readOnly ? null : handle);
         return;
       } catch (err) {
         if (err && err.name === 'AbortError') return;
@@ -249,9 +294,15 @@
     }
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = `${EXT},application/json`;
+    // Phones filter the picker by file type and don't know .fplan: it arrives as generic
+    // binary data, so that type is accepted too or drawings would be greyed out. Listing no
+    // image types also keeps the phone from offering (and asking permission for) the camera.
+    // Anything that isn't a drawing is refused when it's read.
+    input.accept = FP.device && FP.device.phone
+      ? `${EXT},application/json,application/octet-stream,text/plain`
+      : `${EXT},application/json`;
     input.onchange = async () => {
-      if (input.files[0]) loadText(await input.files[0].text(), null, input.files[0].name);
+      if (input.files[0]) await openFile(input.files[0], null);
     };
     input.click();
   }
@@ -268,7 +319,7 @@
     window.addEventListener('drop', async (e) => {
       e.preventDefault();
       const file = e.dataTransfer && e.dataTransfer.files[0];
-      if (file && okToDiscard()) loadText(await file.text(), null, file.name);
+      if (file && okToDiscard()) await openFile(file, null);
     });
     // Refreshing keeps the drawing, so only warn about work that has never been saved to a file.
     window.addEventListener('beforeunload', (e) => {
@@ -277,7 +328,7 @@
   }
 
   FP.fileio = {
-    save, open, newDoc, loadText, download, serialize, initDropTarget, autoSaveToFile,
+    save, open, newDoc, loadText, download, deliver, serialize, initDropTarget, autoSaveToFile,
     rememberHandle, recallHandle, restoreSession, reconnect, setHandleStore,
   };
 })(globalThis);

@@ -28,6 +28,7 @@ An interactive 2D floor plan drawing app that runs entirely in your browser. The
 - **Refreshing keeps your place:** the open drawing, its save file, the floor you were on and the view all come back after a refresh or crash. The browser usually asks once more before writing to the file again: your first click asks, or use the link in the status bar. If the file changed while the page was closed, it is reloaded, unless you had unsaved changes.
 - **Export:** PNG, JPEG or PDF. PDFs can fit the page or print at a true architectural scale.
 - **Settings:** light or dark theme and defaults for new drawings, saved separately from drawing files. They can be backed up to their own file.
+- **On a phone:** the app opens as a viewer sized for the screen, for looking at a drawing, checking sizes, measuring and exporting. It can't change the drawing. Open a `.fplan` file from the phone (from Files, Downloads, Drive or a message attachment), then drag to move around, pinch to zoom and double-tap to fit. Tap a room, wall, door, fixture or anything else to see what it is and its sizes. **Measure** gives the distance between two tapped points, landing on corners and wall faces when close; drag either end to adjust it. **View** holds the units and label switches. **Export** makes the same PNG, JPEG or PDF files as on a computer and hands them to the phone's share sheet (Messages, email, Drive, print). Tablets and phones set to the browser's "Desktop site" get the full editor.
 
 ## Controls
 
@@ -37,6 +38,9 @@ An interactive 2D floor plan drawing app that runs entirely in your browser. The
 | Exterior wall, interior wall | `E`, `W` |
 | Dimension, text, construction line, room divider, stairs | `D`, `T`, `C`, `B`, `S` |
 | Line, polyline (rectangle, circle, ellipse and arc are under Draw in the tools) | `L`, `P` |
+| On a phone: move, zoom, fit | Drag, pinch, double-tap |
+| On a phone: see what something is | Tap it; tap empty space or the close button to dismiss |
+| On a phone: measure | **Measure**, then tap two points; drag an end to adjust. `M` and `Esc` with a keyboard |
 | Draw a rectangle or ellipse to an exact size | Click the first corner (or centre), type width x depth such as `36 x 20` or `90 x 50cm`, and press `Enter` |
 | Finish a polyline | Click its first point to close it; double-click, `Enter` or `Esc` leaves it open. `Backspace` takes back a point |
 | Draw a dimension | Click the start, then the end, then where the dimension line goes (it follows the cursor, showing its distance from the middle of what it measures; snaps to the grid unless `Alt` is held) |
@@ -69,7 +73,10 @@ An interactive 2D floor plan drawing app that runs entirely in your browser. The
   - `geometry`, `model`, `merge`, `options`, `rooms`: the drawing's data and rules, with no page access.
   - `fixtures`, `shapes`, `stairs`, `render`: symbols, drawn shapes and drawing.
   - `app`, `interact`, `ui`, `settings`, `prefs`: application state and interface.
+  - `device`, `gestures`, `viewer`, `describe`: phones. `device` picks the layout (compact or full) and the mode (view-only or editing) separately, so touch editing can later be compact without being view-only. `gestures` turns touches into taps, drags and pinches for whatever uses it.
   - `fileio`, `exporter`: saved drawings, images and PDFs.
+
+To try the phone version on a computer, add `?layout=phone` to the address (`?layout=desktop` does the opposite on a phone).
 
 `index.html` carries a Content Security Policy: the page runs and styles itself only from its own files, and loads nothing from the internet. Keep code out of the HTML (no inline `<script>`, `style=` or `onclick=`), since the browser will refuse to run it.
 

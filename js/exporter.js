@@ -345,6 +345,14 @@
     const canvas = $('exPreview');
     const c = canvas.getContext('2d');
     const floor = app.floor();
+    // Drawn at the screen's pixel density so it's sharp on phones and high-DPI displays, while
+    // its size on screen stays the same.
+    const ratio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    const setSize = (cssW, cssH) => {
+      canvas.width = Math.round(cssW * ratio);
+      canvas.height = Math.round(cssH * ratio);
+      canvas.style.width = `${Math.round(cssW)}px`;
+    };
     const note = $('exNote');
     note.className = 'export-note';
     note.textContent = '';
@@ -353,25 +361,24 @@
       const floors = list.map((p) => p.floor);
       const page = pageSize(o, floors[0]);
       const dpi = Math.min(440 / page.w, 300 / page.h);
-      canvas.width = Math.round(page.w * dpi);
-      canvas.height = Math.round(page.h * dpi);
-      drawPage(c, floors[0], o, page, resolveScale(o, floors), dpi, 1, floors.length, list[0].label);
+      setSize(page.w * dpi, page.h * dpi);
+      drawPage(c, floors[0], o, page, resolveScale(o, floors), dpi * ratio, 1, floors.length, list[0].label);
       const warning = fitWarning(o, floors);
       if (warning) { note.textContent = warning; note.className = 'export-note warn'; }
       else note.textContent = `${floors.length} page${floors.length > 1 ? 's' : ''}. Scale: ${scaleName(resolveScale(o, floors))}. Print at 100% ("Actual size") for true scale.`;
     } else {
       const size = imageSize(floor, o.pxPerIn, o);
       if (!size) {
-        canvas.width = 440; canvas.height = 200;
+        setSize(440, 200);
         c.fillStyle = '#fff';
-        c.fillRect(0, 0, 440, 200);
+        c.fillRect(0, 0, canvas.width, canvas.height);
         note.textContent = 'This floor is empty.';
         return;
       }
       const k = Math.min(440 / size.b.w, 300 / size.b.h);
-      canvas.width = Math.ceil(size.b.w * k);
-      canvas.height = Math.ceil(size.b.h * k);
-      const R = Rn.makeR(c, k, -size.b.minX * k, -size.b.minY * k, Math.max(0.5, k / Math.max(o.pxPerIn / 3, 1)));
+      setSize(Math.ceil(size.b.w * k), Math.ceil(size.b.h * k));
+      const kr = k * ratio;
+      const R = Rn.makeR(c, kr, -size.b.minX * kr, -size.b.minY * kr, Math.max(0.5, k / Math.max(o.pxPerIn / 3, 1)) * ratio);
       Rn.drawPlan(R, floor, app.geo(floor), floorOptions({ ...o, transparent: false }, canvas.width, canvas.height, floor));
       note.textContent = `${size.w} x ${size.h} pixels${size.limited ? ' (reduced to the maximum image size)' : ''}.`;
     }
@@ -382,26 +389,48 @@
     return `${base}.${ext}`;
   }
 
+  // A finished export the browser wouldn't share without a fresh tap: { blob, name }. The
+  // Export button becomes Share until it's sent or the options change.
+  let pending = null;
+  function setPending(next) {
+    pending = next;
+    $('exGo').textContent = pending ? 'Share' : 'Export';
+    $('exNote').classList.toggle('ready', !!pending);
+    if (pending) $('exNote').textContent = `${pending.name} is ready. Tap Share to send it.`;
+  }
+
+  async function send(blob, name) {
+    const result = await FP.fileio.deliver(blob, name);
+    if (result === 'blocked') { setPending({ blob, name }); return; }
+    setPending(null);
+    if (result === 'cancelled') return;
+    $('exportDialog').close();
+    app.toast(result === 'shared' ? 'Export shared.' : 'Export finished.');
+  }
+
   async function runExport() {
-    const o = readOptions();
     const button = $('exGo');
+    if (pending) { await send(pending.blob, pending.name); return; }
+    const o = readOptions();
     button.disabled = true;
     button.textContent = 'Exporting...';
     try {
+      let blob, name;
       if (o.format === 'pdf') {
-        FP.fileio.download(await buildPdf(o), exportName('pdf'));
+        blob = await buildPdf(o);
+        name = exportName('pdf');
       } else {
-        const blob = await buildImage(o);
+        blob = await buildImage(o);
         if (!blob) { app.toast('This floor is empty, so there is nothing to export.', true); return; }
-        FP.fileio.download(blob, exportName(o.format === 'jpeg' ? 'jpg' : 'png'));
+        name = exportName(o.format === 'jpeg' ? 'jpg' : 'png');
       }
-      $('exportDialog').close();
-      app.toast('Export finished.');
+      button.textContent = 'Export';
+      await send(blob, name);
     } catch (err) {
       app.toast(`Export failed: ${err.message}`, true);
     } finally {
       button.disabled = false;
-      button.textContent = 'Export';
+      if (!pending) button.textContent = 'Export';
     }
   }
 
@@ -417,7 +446,8 @@
     fill($('exPaper'), Object.entries(PAPERS).map(([k, p]) => [k, p.name]));
     fill($('exScale'), [['fit', 'Fit to page'], ...SCALES.map((s) => [s.id, s.label])]);
     const dialog = $('exportDialog');
-    dialog.addEventListener('input', updatePreview);
+    dialog.addEventListener('input', () => { setPending(null); updatePreview(); });
+    dialog.addEventListener('close', () => setPending(null));
     $('exGo').addEventListener('click', runExport);
     $('exCancel').addEventListener('click', () => dialog.close());
   }

@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Only the app's own files may run or style the page; drawings opened from files can never add code. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>FloorPlanner</title>
+  <script src="js/device.js"></script>
   <script src="js/prefs.js"></script>
   <link rel="stylesheet" href="css/app.css">
 </head>
@@ -13,17 +14,21 @@
   <header id="topbar">
     <div class="brand"><strong>FloorPlanner</strong><span id="docName"></span></div>
     <div class="group">
-      <button id="newBtn">New</button>
+      <button id="newBtn" class="edit-only">New</button>
       <button id="openBtn" title="Ctrl+O">Open</button>
-      <button id="saveBtn" title="Ctrl+S">Save</button>
-      <button id="saveAsBtn" title="Ctrl+Shift+S">Save As</button>
+      <button id="saveBtn" class="edit-only" title="Ctrl+S">Save</button>
+      <button id="saveAsBtn" class="edit-only" title="Ctrl+Shift+S">Save As</button>
       <button id="exportBtn" class="primary">Export</button>
     </div>
-    <div class="group">
+    <div class="group view-only-ui">
+      <button id="viewSheetBtn" class="compact-only" aria-expanded="false" title="Units and what the plan shows">View</button>
+      <button id="measureBtn" class="toggle" aria-pressed="false" title="Tap two points to measure between them (M)">Measure</button>
+    </div>
+    <div class="group edit-only">
       <button id="undoBtn" title="Ctrl+Z">Undo</button>
       <button id="redoBtn" title="Ctrl+Y">Redo</button>
     </div>
-    <div class="group labelled">
+    <div class="group labelled view-setting">
       <span>Units</span>
       <div class="seg" id="unitsSeg">
         <button data-value="ftin">ft/in</button>
@@ -32,13 +37,13 @@
         <button data-value="mm">mm</button>
       </div>
     </div>
-    <div class="group labelled">
+    <div class="group labelled edit-only">
       <span>Grid</span>
       <select id="gridSize" aria-label="Grid and snap size"></select>
       <button id="tSnap" class="toggle" title="Snap to the grid while drawing and dragging. Hold Alt to bypass.">Snap</button>
       <button id="tGrid" class="toggle">Show</button>
     </div>
-    <div class="group labelled">
+    <div class="group labelled edit-only">
       <span title="Angle steps used while holding Shift">Shift</span>
       <div class="seg" id="angleSeg">
         <button data-value="15">15&deg;</button>
@@ -46,24 +51,24 @@
         <button data-value="90">90&deg;</button>
       </div>
     </div>
-    <div class="group">
+    <div class="group view-setting">
       <button id="tLengths" class="toggle">Lengths</button>
       <button id="tBoth" class="toggle" title="Show the length of both faces of each wall">Both sides</button>
       <button id="tRooms" class="toggle">Rooms</button>
       <button id="tGuides" class="toggle" title="Show construction lines and snap to them">Constr. lines</button>    </div>
     <div class="group right">
-      <button id="zoomOut" aria-label="Zoom out">&minus;</button>
-      <span id="zoomLabel" class="zoom"></span>
-      <button id="zoomIn" aria-label="Zoom in">+</button>
+      <button id="zoomOut" class="full-only" aria-label="Zoom out">&minus;</button>
+      <span id="zoomLabel" class="zoom full-only"></span>
+      <button id="zoomIn" class="full-only" aria-label="Zoom in">+</button>
       <button id="fitBtn" title="Fit the plan on screen (0)">Fit</button>
-      <button id="resetBtn" title="Return to the default zoom and origin">Reset</button>
+      <button id="resetBtn" class="full-only" title="Return to the default zoom and origin">Reset</button>
       <button id="themeBtn" class="icon"></button>
-      <button id="settingsBtn">Settings</button>
+      <button id="settingsBtn" class="edit-only">Settings</button>
     </div>
   </header>
 
   <main>
-    <aside id="left">
+    <aside id="left" class="edit-only">
       <section id="tools" class="panel">
         <h2>Tools</h2>
         <div class="tool-grid">
@@ -102,35 +107,48 @@
     <div id="center">
       <div id="canvasWrap">
         <canvas id="plan" tabindex="0" aria-label="Floor plan drawing area"></canvas>
-        <div id="designBar" title="Design options: try changes to this floor, such as a renovation, without touching the as-is plan.">
+        <div id="designBar" hidden title="Design options: try changes to this floor, such as a renovation, without touching the as-is plan.">
           <span>Design</span>
           <select id="optionSelect" aria-label="Design option"></select>
-          <label class="check inline" id="changesRow" title="Removed or moved items dashed in red where they were; new or changed items in green; room area changes under room names."><input type="checkbox" id="tChanges"><span>Show changes</span></label>
+          <label class="check inline" id="changesRow" hidden title="Removed or moved items dashed in red where they were; new or changed items in green; room area changes under room names."><input type="checkbox" id="tChanges"><span>Show changes</span></label>
+        </div>
+        <section id="infoCard" role="status" aria-live="polite" hidden>
+          <div class="info-head">
+            <h2 id="infoTitle"></h2>
+            <button id="infoClose" class="icon-btn" aria-label="Close">&times;</button>
+          </div>
+          <dl id="infoRows"></dl>
+          <p id="infoNote" hidden></p>
+        </section>
+        <div id="emptyState" hidden>
+          <h2>Open a drawing</h2>
+          <p>Open a FloorPlanner drawing (.fplan) to look around it, check sizes, measure and export it.</p>
+          <button id="emptyOpenBtn" class="primary">Open</button>
         </div>
       </div>
       <div id="floorBar">
         <div id="floorTabs"></div>
-        <button id="floorDown" title="Move this floor one level lower" aria-label="Move this floor one level lower">&#9664;</button>
-        <button id="floorUp" title="Move this floor one level higher" aria-label="Move this floor one level higher">&#9654;</button>
-        <button id="renFloor" title="Rename this floor">Rename</button>
-        <button id="addFloor" title="Add a floor">+ Floor</button>
-        <button id="dupFloor" title="Copy this floor">Duplicate</button>
-        <button id="delFloor" title="Delete this floor">Delete</button>
-        <label class="inline-select" title="Fade or hide stairs while you work under them. Clicks pass through faded or hidden stairs. Exports always show them.">
+        <button id="floorDown" class="edit-only" title="Move this floor one level lower" aria-label="Move this floor one level lower">&#9664;</button>
+        <button id="floorUp" class="edit-only" title="Move this floor one level higher" aria-label="Move this floor one level higher">&#9654;</button>
+        <button id="renFloor" class="edit-only" title="Rename this floor">Rename</button>
+        <button id="addFloor" class="edit-only" title="Add a floor">+ Floor</button>
+        <button id="dupFloor" class="edit-only" title="Copy this floor">Duplicate</button>
+        <button id="delFloor" class="edit-only" title="Delete this floor">Delete</button>
+        <label class="inline-select edit-only" title="Fade or hide stairs while you work under them. Clicks pass through faded or hidden stairs. Exports always show them.">
           <span>Stairs</span>
           <select id="stairView"><option value="show">Shown</option><option value="fade">Faded</option><option value="hide">Hidden</option></select>
         </label>
-        <label class="check inline" title="The nearest visible floor below, shown faintly underneath. Hide a floor with its eye button."><input type="checkbox" id="tGhost"><span>Floor below</span></label>
-        <label class="check inline" title="The nearest visible floor above, overlaid faintly in purple. Hide a floor with its eye button."><input type="checkbox" id="tGhostAbove"><span>Floor above</span></label>
+        <label class="check inline full-only" title="The nearest visible floor below, shown faintly underneath. Hide a floor with its eye button."><input type="checkbox" id="tGhost"><span>Floor below</span></label>
+        <label class="check inline full-only" title="The nearest visible floor above, overlaid faintly in purple. Hide a floor with its eye button."><input type="checkbox" id="tGhostAbove"><span>Floor above</span></label>
       </div>
-      <footer id="status">
+      <footer id="status" class="edit-only">
         <span id="hint"></span>
         <span id="saveState"></span>
         <span id="coords"></span>
       </footer>
     </div>
 
-    <aside id="right">
+    <aside id="right" class="edit-only">
       <section class="panel grow">
         <h2>Inspector</h2>
         <div id="inspector"></div>
@@ -284,10 +302,13 @@
   <script src="js/render.js"></script>
   <script src="js/stairs.js"></script>
   <script src="js/groups.js"></script>
+  <script src="js/describe.js"></script>
+  <script src="js/gestures.js"></script>
   <script src="js/app.js"></script>
   <script src="js/fileio.js"></script>
   <script src="js/exporter.js"></script>
   <script src="js/interact.js"></script>
+  <script src="js/viewer.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/main.js"></script>

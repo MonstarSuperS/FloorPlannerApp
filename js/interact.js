@@ -241,10 +241,10 @@
     return n ? { kind: 'node', nodeId: n.id, x: n.x, y: n.y } : null;
   }
 
-  // o: { from, shift, angles, excludeNodes, excludeWalls, excludeGuides, noWalls }
+  // o: { from, shift, angles, excludeNodes, excludeWalls, excludeGuides, noWalls, snapPx }
   function snap(world, o) {
     o = o || {};
-    const thr = SNAP_PX / scale();
+    const thr = (o.snapPx || SNAP_PX) / scale();
     const s = app.settings();
     const guides = [];
 
@@ -813,6 +813,7 @@
   // kind: the wall type for 'wall', 'divider' for 'guide' to draw room dividers, or for
   // 'shape' which one: line, poly, rect, circle, ellipse or arc.
   function setTool(tool, kind) {
+    if (app.readOnly && tool !== 'select') return; // view-only has no drawing tools
     if (app.place) app.place = null;
     if (app.tool === 'shape') finishPoly();
     app.draw = null;
@@ -1017,6 +1018,7 @@
   }
 
   function beginPlace(desc, e) {
+    if (app.readOnly) return;
     setTool('select');
     if (desc.cat === 'furniture') {
       desc.piece = (app.doc.furniture || []).find((x) => x.id === desc.pieceId);
@@ -1794,6 +1796,7 @@
 
   function onPointerDown(e) {
     canvas.focus({ preventScroll: true });
+    if (app.readOnly) return; // view-only: FP.viewer handles the plan through FP.gestures
     updateMouse(e);
     const world = { x: mouse.x, y: mouse.y };
 
@@ -1900,6 +1903,7 @@
 
   function onPointerMove(e) {
     updateMouse(e);
+    if (app.readOnly) return;
     const world = { x: mouse.x, y: mouse.y };
     if (panning) {
       app.view.ox = panning.ox + (e.clientX - panning.sx);
@@ -1939,6 +1943,7 @@
 
   function onPointerUp(e) {
     updateMouse(e);
+    if (app.readOnly) { press = null; panning = null; return; }
     if (panning) {
       panning = null;
       updateCursor();
@@ -1988,6 +1993,7 @@
 
   // Double-clicking a member of a group selects just that item, to move or edit it alone.
   function onDoubleClick(e) {
+    if (app.readOnly) return;
     if (app.tool === 'shape' && app.shapeKind === 'poly') { finishPoly(); return; }
     if (app.tool !== 'select' || app.place || app.drag) return;
     updateMouse(e);
@@ -2306,6 +2312,8 @@
 
   function onKeyDown(e) {
     if (isEditing(e)) return;
+    // View-only: no editing keys at all, only the viewer's own (Esc, Fit, Open, measure).
+    if (app.readOnly) { if (FP.viewer) FP.viewer.onKey(e); return; }
     const key = e.key;
     const ctrl = e.ctrlKey || e.metaKey;
     mouse.shift = e.shiftKey;
@@ -3057,7 +3065,8 @@
     const geo = app.geo(floor);
     const R = Rn.makeR(ctx, app.view.scale * dpr, app.view.ox * dpr, app.view.oy * dpr, dpr, Rn.PALETTES[FP.prefs.theme()]);
     Rn.drawPlan(R, floor, geo, viewOptions(w, h));
-    drawOverlay(R, floor, geo);
+    if (app.readOnly) { if (FP.viewer) FP.viewer.drawOverlay(R, floor, geo); }
+    else drawOverlay(R, floor, geo);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
@@ -3127,7 +3136,52 @@
     return 'Drag anything to move it. Drag corners to reshape. Drag on empty space to box-select. Ctrl+G groups, Ctrl+L locks.';
   }
 
+  // ---------- View-only support ----------
+
+  // What a tap lands on. Fingers are wide, so after the ordinary hit test, walls, shape
+  // outlines, dimensions and lines within `px` screen pixels count before the room around them.
+  function tapHit(world, px) {
+    const exact = hitTest(world);
+    if (exact && exact.t !== 'room' && exact.t !== 'node') return exact;
+    const thr = (px || 0) / scale();
+    const floor = app.floor(), geo = app.geo();
+    const w = wallHit(world, thr);
+    if (w) return { t: 'wall', id: w.wall.id };
+    const shapes = floor.shapes || [];
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      if (FP.shapes.outlineDistance(shapes[i], world) <= thr) return { t: 'shape', id: shapes[i].id };
+    }
+    for (const dim of floor.dims) {
+      const e = Rn.dimGeometry(floor, dim, geo.idx);
+      if (G.distToSegment(world, e.p, e.q) <= thr) return { t: 'dim', id: dim.id };
+    }
+    for (const g of guideList()) {
+      if (G.distToSegment(world, g.a, g.b) <= thr) return { t: 'guide', id: g.id };
+    }
+    return exact && exact.t === 'room' ? exact : null;
+  }
+
+  // Where a measuring point lands: on a corner, wall face, line or item point within `px`
+  // screen pixels, or exactly where tapped. Never on the grid, which would misreport a
+  // measurement.
+  function measureSnap(world, px) {
+    const t = snap(world, { snapPx: px });
+    const it = itemPointAt(world, px / scale());
+    const pick = it && (!isSnapPoint(t) || t.kind === 'wall' || G.dist(it, world) <= G.dist(t, world) + 1e-9) ? it : t;
+    if (pick.kind === 'wall') {
+      // On a wall face, exactly opposite the finger: drawing rounds the position along the
+      // wall to the grid, which would tilt a level measurement.
+      const hit = wallHit(world, px / scale());
+      if (hit && hit.wall.id === pick.wallId) {
+        const p = wallPoint({ ...hit, face: pick.face }, hit.along);
+        return { x: p.x, y: p.y, snapped: true };
+      }
+    }
+    return isSnapPoint(pick) ? { x: pick.x, y: pick.y, snapped: true } : { x: world.x, y: world.y, snapped: false };
+  }
+
   FP.interact = {
+    tapHit, measureSnap, outlinePoly, fixtureOutline, labelBox, toWorld,
     init, setTool, beginPlace, endPlace, hintText, mouse, fixtureHandles, snapFixtureToWalls, deleteSelection, rememberStair, rotateStair,
     setLocked, toggleLock, groupSelection, ungroupSelection, selectedGroup, mergeSelection, mergeAllWalls,
     rememberShapeStyle, saveFurniture, SHAPE_TOOLS,

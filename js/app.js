@@ -26,6 +26,8 @@
     history: [],
     historyIndex: -1,
     listeners: [],
+    mode: 'edit',   // 'edit', or 'view': look, measure and export, with no way to change the drawing
+    readOnly: false,
   });
 
   app.floor = () => app.doc.floors.find((f) => f.id === app.doc.activeFloorId) || app.doc.floors[0];
@@ -87,7 +89,8 @@
     app.draw = null;
     app.dimDraft = null;
     refreshLocks();
-    app.commit();
+    if (app.readOnly) app.viewChange();
+    else app.commit();
     app.emit('selection');
   };
   app.refreshLocks = refreshLocks;
@@ -98,8 +101,49 @@
 
   const snapshot = () => JSON.stringify({ floors: app.doc.floors, activeFloorId: app.doc.activeFloorId, customFixtures: app.doc.customFixtures, furniture: app.doc.furniture, name: app.doc.name });
 
+  // Switches between editing and view-only. Anything half-done (a wall being drawn, a drag, an
+  // item being placed) is dropped, and the selection cleared, so nothing editable is left open.
+  app.setMode = (mode) => {
+    mode = mode === 'view' ? 'view' : 'edit';
+    if (FP.interact && app.tool !== 'select') FP.interact.setTool('select');
+    if (FP.interact && app.place) FP.interact.endPlace();
+    app.mode = mode;
+    app.readOnly = mode === 'view';
+    app.sel = [];
+    app.hover = null;
+    app.draw = null;
+    app.dimDraft = null;
+    app.drag = null;
+    if (typeof document !== 'undefined') document.documentElement.classList.toggle('view-only', app.readOnly);
+    app.emit('mode');
+    app.emit('selection');
+    app.requestRender();
+  };
+
+  // A change to how the drawing is shown rather than what it contains (units, labels, the open
+  // design option), made while view-only. It is kept with this browser's session so it survives
+  // a refresh, but it doesn't mark the drawing unsaved, join the undo history or reach the file.
+  app.viewChange = () => {
+    app.rev++;
+    M.normalize(app.floor());
+    refreshLocks();
+    // The current undo step takes on the change rather than a new one being added, so going
+    // back to it (or editing later) starts from what's on screen.
+    if (app.historyIndex >= 0) app.history[app.historyIndex] = snapshot();
+    app.saveSession();
+    app.emit('doc');
+    app.requestRender();
+  };
+
   // Records a finished edit as one undo step.
   app.commit = () => {
+    // View-only can't change the drawing. Every path to an edit is closed off; this is the
+    // backstop in case one is missed: whatever changed is put back as it was.
+    if (app.readOnly) {
+      console.warn('FloorPlanner: an edit was attempted while view-only and has been undone.');
+      restore(app.history[app.historyIndex], true);
+      return;
+    }
     M.normalize(app.floor());
     M.pruneGroups(app.floor());
     holdLocked();
@@ -125,7 +169,9 @@
     app.emit('title');
   };
 
-  function restore(serialized) {
+  // quiet: putting back what an edit refused while view-only changed, which leaves the
+  // drawing exactly as saved, so it isn't marked unsaved or auto-saved.
+  function restore(serialized, quiet) {
     Object.assign(app.doc, JSON.parse(serialized));
     app.rev++;
     const floor = app.floor();
@@ -138,20 +184,22 @@
     app.draw = null;
     app.dimDraft = null;
     app.drag = null;
-    app.setDirty(true);
-    app.scheduleAutosave();
+    if (!quiet) {
+      app.setDirty(true);
+      app.scheduleAutosave();
+    }
     app.emit('doc');
     app.emit('selection');
     app.requestRender();
   }
 
   app.undo = () => {
-    if (app.historyIndex <= 0) return;
+    if (app.readOnly || app.historyIndex <= 0) return;
     app.historyIndex--;
     restore(app.history[app.historyIndex]);
   };
   app.redo = () => {
-    if (app.historyIndex >= app.history.length - 1) return;
+    if (app.readOnly || app.historyIndex >= app.history.length - 1) return;
     app.historyIndex++;
     restore(app.history[app.historyIndex]);
   };
@@ -258,6 +306,8 @@
     } catch (e) { /* storage unavailable */ }
   };
   app.scheduleAutosave = () => {
+    // Never write to the drawing's file while view-only, even if one is linked.
+    if (app.readOnly) { app.saveSession(); return; }
     app.changeCount++;
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
