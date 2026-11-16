@@ -26,9 +26,17 @@
   };
   const ROOM_TINTS = [[66, 133, 180], [214, 158, 72], [96, 164, 120], [176, 112, 160], [204, 110, 92], [110, 120, 190]];
 
+  // On screen, labels shrink as the plan is zoomed out, down to TEXT_MIN of their size, so they
+  // keep to the drawing; past that, a label that doesn't fit its room, wall or dimension line is
+  // left out until you zoom in (R.fit). Exports keep full-size text and every label.
+  const TEXT_FULL_AT = 2; // screen pixels per inch at which labels are full size
+  const TEXT_MIN = 0.7;
+  const textScale = (pxPerIn) => Math.max(TEXT_MIN, Math.min(1, pxPerIn / TEXT_FULL_AT));
+
+  // R.text: label size multiplier. R.fit: leave out labels with no room for them.
   function makeR(ctx, scale, ox, oy, unit, colors) {
     const R = {
-      ctx, scale, ox, oy, unit,
+      ctx, scale, ox, oy, unit, text: 1, fit: false,
       colors: colors || PALETTES.light,
       world() { ctx.setTransform(scale, 0, 0, scale, ox, oy); },
       screen() { ctx.setTransform(1, 0, 0, 1, 0, 0); },
@@ -281,7 +289,35 @@
   }
 
   // Screen-space text centred at a point, rotated to stay readable.
+  const labelFont = (R, sizePx, weight) => `${weight || 500} ${sizePx * R.unit * R.text}px system-ui, sans-serif`;
+
+  // How wide a label will be on screen, in canvas pixels.
+  function textWidth(R, text, sizePx, weight) {
+    const c = R.ctx;
+    c.save();
+    c.font = labelFont(R, sizePx, weight);
+    const w = c.measureText(text).width;
+    c.restore();
+    return w;
+  }
+
+  // With R.fit, each label claims its space on screen (R.taken) as it's drawn, and a later one
+  // that would overlap it is left out. drawPlan draws the most useful first: room names, then
+  // text, dimensions, wall lengths and construction lines. Returns whether there was room.
+  function claim(R, sx, sy, w, h, angle) {
+    if (!R.taken) return true;
+    const cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
+    const pad = 1.5 * R.unit;
+    const box = { hw: (cos * w + sin * h) / 2 + pad, hh: (sin * w + cos * h) / 2 + pad, x: sx, y: sy };
+    for (const t of R.taken) {
+      if (Math.abs(t.x - box.x) < t.hw + box.hw && Math.abs(t.y - box.y) < t.hh + box.hh) return false;
+    }
+    R.taken.push(box);
+    return true;
+  }
+
   function tagText(R, text, sx, sy, angle, color, sizePx, weight) {
+    if (R.taken && !claim(R, sx, sy, textWidth(R, text, sizePx, weight), sizePx * R.unit * R.text * 1.15, angle)) return false;
     const c = R.ctx;
     R.screen();
     c.save();
@@ -289,22 +325,23 @@
     let a = angle;
     if (a > Math.PI / 2 || a <= -Math.PI / 2) a += Math.PI;
     c.rotate(a);
-    c.font = `${weight || 500} ${sizePx * R.unit}px system-ui, sans-serif`;
+    c.font = labelFont(R, sizePx, weight);
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.lineJoin = 'round';
-    c.lineWidth = 3.5 * R.unit;
+    c.lineWidth = 3.5 * R.unit * R.text;
     c.strokeStyle = R.colors.halo;
     c.strokeText(text, 0, 0);
     c.fillStyle = color;
     c.fillText(text, 0, 0);
     c.restore();
+    return true;
   }
 
   function drawWallLengths(R, floor, geo, o) {
     const idx = geo.idx;
     const fmt = (v) => FP.units.format(v, o.units);
-    const gap = 11 * R.unit;
+    const gap = 11 * R.unit * R.text;
     // A label sits in the longest clear stretch of its face, so partitions don't run through it.
     const clearSpot = (wall, len, face) => {
       const stops = floor.nodes
@@ -316,8 +353,10 @@
         if (d - from > width) { width = d - from; best = (from + d) / 2; }
         from = d;
       }
-      return best;
+      return { at: best, width };
     };
+    // With R.fit, a length is only shown where there's room along the wall for it.
+    const fits = (text, stretch) => !R.fit || textWidth(R, text, 11) + 6 * R.unit * R.text <= stretch * R.scale;
     for (const w of floor.walls) {
       const j = geo.joins.get(w.id);
       if (!j) continue;
@@ -326,14 +365,20 @@
       const angle = Math.atan2(f.u.y, f.u.x);
       if (w.type === 'exterior' && !o.bothFaces) {
         // Outside the building, clear of fixtures. It still reads the inside-face length.
+        if (!fits(fmt(f.len), f.len)) continue;
         const out = G.add(G.add(f.a, G.mul(f.u, f.len / 2)), G.mul(f.ns, f.t));
         tagText(R, fmt(f.len), R.sx(out.x) + f.ns.x * gap, R.sy(out.y) + f.ns.y * gap, angle, R.colors.length, 11);
         continue;
       }
-      const ref = G.add(f.a, G.mul(f.u, clearSpot(w, f.len, 'ref')));
-      tagText(R, fmt(f.len), R.sx(ref.x) - f.ns.x * gap, R.sy(ref.y) - f.ns.y * gap, angle, R.colors.length, 11);
+      const refSpot = clearSpot(w, f.len, 'ref');
+      if (fits(fmt(f.len), refSpot.width)) {
+        const ref = G.add(f.a, G.mul(f.u, refSpot.at));
+        tagText(R, fmt(f.len), R.sx(ref.x) - f.ns.x * gap, R.sy(ref.y) - f.ns.y * gap, angle, R.colors.length, 11);
+      }
       if (o.bothFaces) {
-        const far = G.add(G.add(f.a, G.mul(f.u, clearSpot(w, f.len, 'far'))), G.mul(f.ns, f.t));
+        const farSpot = clearSpot(w, f.len, 'far');
+        if (!fits(fmt(j.farLen), farSpot.width)) continue;
+        const far = G.add(G.add(f.a, G.mul(f.u, farSpot.at)), G.mul(f.ns, f.t));
         tagText(R, fmt(j.farLen), R.sx(far.x) + f.ns.x * gap, R.sy(far.y) + f.ns.y * gap, angle, R.colors.soft, 11);
       }
     }
@@ -367,7 +412,10 @@
     for (const p of [g.p, g.q]) { c.moveTo(p.x - d.x, p.y - d.y); c.lineTo(p.x + d.x, p.y + d.y); }
     c.stroke();
     const m = G.mul(G.add(g.p, g.q), 0.5);
-    tagText(R, FP.units.format(g.len, o.units), R.sx(m.x), R.sy(m.y), Math.atan2(g.u.y, g.u.x), color || R.colors.dim, 11);
+    const text = FP.units.format(g.len, o.units);
+    // The line is still drawn when its text has no room; the text comes back on zooming in.
+    if (R.fit && textWidth(R, text, 11) + 8 * R.unit * R.text > g.len * R.scale) return;
+    tagText(R, text, R.sx(m.x), R.sy(m.y), Math.atan2(g.u.y, g.u.x), color || R.colors.dim, 11);
   }
 
   // Construction lines: dashed, with a dot at each end and their measured length.
@@ -393,9 +441,11 @@
         c.fill();
       }
       const len = G.dist(g.a, g.b);
-      if (len * R.scale >= 34 * R.unit) {
+      const label = FP.units.format(len, o.units);
+      const room = R.fit ? textWidth(R, label, 11) + 6 * R.unit * R.text : 34 * R.unit;
+      if (len * R.scale >= room) {
         const n = G.nrm(G.mul(G.sub(g.b, g.a), 1 / len));
-        const gap = 9 * R.unit;
+        const gap = 9 * R.unit * R.text;
         tagText(R, FP.units.format(len, o.units), R.sx((g.a.x + g.b.x) / 2) + n.x * gap, R.sy((g.a.y + g.b.y) / 2) + n.y * gap,
           Math.atan2(g.b.y - g.a.y, g.b.x - g.a.x), R.colors.guide, 11);
       }
@@ -432,6 +482,8 @@
     c.textBaseline = 'middle';
     c.fillStyle = color || R.colors.ink;
     c.fillText(l.text || ' ', 0, 0);
+    // Text you typed is part of the drawing, so it always shows; labels drawn after it keep clear.
+    if (R.taken) claim(R, R.sx(l.x), R.sy(l.y), c.measureText(l.text || ' ').width, l.size * R.scale * 1.15, (l.rot * Math.PI) / 180);
     c.restore();
   }
 
@@ -445,21 +497,73 @@
     return room ? room.area : null;
   }
 
+  // Whether a block of text centred at screen (sx, sy), halfW wide each side and running from
+  // top to bottom (screen offsets from sy), sits wholly inside room `label`. Checked against
+  // room detection's grid at the corners, edge midpoints and centre.
+  function blockInRoom(R, detected, label, sx, sy, halfW, top, bottom) {
+    if (!detected || !detected.labelAt) return true;
+    const xs = [sx - halfW, sx, sx + halfW], ys = [sy + top, sy + (top + bottom) / 2, sy + bottom];
+    for (const x of xs) {
+      for (const y of ys) {
+        if (detected.labelAt((x - R.ox) / R.scale, (y - R.oy) / R.scale) !== label) return false;
+      }
+    }
+    return true;
+  }
+
+  // How much of a room's label to show: 'all' (name, area and any change), 'name', or 'none'.
+  // Without R.fit (exports), always 'all'.
+  function roomLabelFit(R, geo, rec, region, lines) {
+    if (!R.fit) return 'all';
+    const tu = R.unit * R.text, pad = 3 * tu;
+    const w = Math.max(...lines.map(([text, size, weight]) => textWidth(R, text, size, weight))) / 2 + pad;
+    const sx = R.sx(rec.x), sy = R.sy(rec.y);
+    const bottom = lines.length > 2 ? 28 * tu : 14 * tu;
+    if (blockInRoom(R, geo.detected, region.label, sx, sy, w, -15 * tu, bottom)) return 'all';
+    const nw = textWidth(R, lines[0][0], lines[0][1], lines[0][2]) / 2 + pad;
+    return blockInRoom(R, geo.detected, region.label, sx, sy, nw, -8 * tu, 8 * tu) ? 'name' : 'none';
+  }
+
   // changes: when showing a design option, how each room's area differs from as-is.
   function drawRoomLabels(R, floor, geo, changes, units) {
     if (!geo.shown) return;
+    const tu = R.unit * R.text;
     for (const rec of floor.rooms) {
       const region = geo.shown.get(rec.id);
       if (!region) continue;
       const sx = R.sx(rec.x), sy = R.sy(rec.y);
-      tagText(R, rec.name || 'Room', sx, sy - 8 * R.unit, 0, R.colors.ink, 13, 600);
-      tagText(R, FP.units.formatArea(region.area, units), sx, sy + 8 * R.unit, 0, R.colors.soft, 11, 500);
-      if (!changes) continue;
-      const before = areaBefore(changes, region.anchor || rec);
-      const delta = region.area - (before || 0);
-      if (before != null && Math.abs(delta) < 0.05 * 144) continue;
-      const text = before == null ? 'New room' : `${delta > 0 ? '+' : '−'}${FP.units.formatArea(Math.abs(delta), units)}`;
-      tagText(R, text, sx, sy + 22 * R.unit, 0, delta >= 0 ? R.colors.newWork : R.colors.demo, 11, 700);
+      const name = rec.name || 'Room';
+      const lines = [[name, 13, 600], [FP.units.formatArea(region.area, units), 11, 500]];
+      let change = null;
+      if (changes) {
+        const before = areaBefore(changes, region.anchor || rec);
+        const delta = region.area - (before || 0);
+        if (before == null || Math.abs(delta) >= 0.05 * 144) {
+          change = {
+            text: before == null ? 'New room' : `${delta > 0 ? '+' : '−'}${FP.units.formatArea(Math.abs(delta), units)}`,
+            color: delta >= 0 ? R.colors.newWork : R.colors.demo,
+          };
+          lines.push([change.text, 11, 700]);
+        }
+      }
+      let fit = roomLabelFit(R, geo, rec, region, lines);
+      // The label claims its space as one block, so its own lines never crowd each other out.
+      const width = (n) => Math.max(...lines.slice(0, n).map(([t, s, w]) => textWidth(R, t, s, w)));
+      if (fit === 'all' && R.taken) {
+        const bottom = change ? 28 * tu : 14 * tu;
+        if (!claim(R, sx, sy + (bottom - 15 * tu) / 2, width(lines.length), bottom + 15 * tu, 0)) fit = 'name';
+      }
+      if (fit === 'name' && R.taken && !claim(R, sx, sy, width(1), 16 * tu, 0)) fit = 'none';
+      if (fit === 'none') continue;
+      const taken = R.taken;
+      R.taken = null; // already claimed above
+      if (fit === 'name') tagText(R, name, sx, sy, 0, R.colors.ink, 13, 600);
+      else {
+        tagText(R, name, sx, sy - 8 * tu, 0, R.colors.ink, 13, 600);
+        tagText(R, lines[1][0], sx, sy + 8 * tu, 0, R.colors.soft, 11, 500);
+        if (change) tagText(R, change.text, sx, sy + 22 * tu, 0, change.color, 11, 700);
+      }
+      R.taken = taken;
     }
   }
 
@@ -537,6 +641,7 @@
     c.fillStyle = R.colors.paper;
     if (o.transparent) c.clearRect(0, 0, o.width, o.height);
     else c.fillRect(0, 0, o.width, o.height);
+    R.taken = R.fit ? [] : null; // labels' claimed space on screen, from the most useful down
     if (o.showGrid) drawGrid(R, o.width, o.height, o.gridSize, o.units);
 
     if (o.ghost) {
@@ -626,5 +731,5 @@
     return geo;
   }
 
-  FP.render = { PALETTES, makeR, drawPlan, drawOpening, drawFixture, drawDim, drawLabel, dimGeometry, tagText, buildGeo, wallPath };
+  FP.render = { PALETTES, makeR, textScale, textWidth, roomLabelFit, drawPlan, drawOpening, drawFixture, drawDim, drawLabel, dimGeometry, tagText, buildGeo, wallPath };
 })(globalThis);

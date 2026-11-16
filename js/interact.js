@@ -3064,7 +3064,11 @@
     const floor = app.floor();
     const geo = app.geo(floor);
     const R = Rn.makeR(ctx, app.view.scale * dpr, app.view.ox * dpr, app.view.oy * dpr, dpr, Rn.PALETTES[FP.prefs.theme()]);
+    // On screen, labels shrink when zoomed out and drop out where they don't fit (exports don't).
+    R.text = Rn.textScale(app.view.scale);
+    R.fit = true;
     Rn.drawPlan(R, floor, geo, viewOptions(w, h));
+    R.taken = null; // what's drawn over the plan (a measurement, a selection) always shows
     if (app.readOnly) { if (FP.viewer) FP.viewer.drawOverlay(R, floor, geo); }
     else drawOverlay(R, floor, geo);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -3174,14 +3178,52 @@
       const hit = wallHit(world, px / scale());
       if (hit && hit.wall.id === pick.wallId) {
         const p = wallPoint({ ...hit, face: pick.face }, hit.along);
-        return { x: p.x, y: p.y, snapped: true };
+        return { x: p.x, y: p.y, snapped: true, wallId: pick.wallId };
       }
     }
-    return isSnapPoint(pick) ? { x: pick.x, y: pick.y, snapped: true } : { x: world.x, y: world.y, snapped: false };
+    if (!isSnapPoint(pick)) return { x: world.x, y: world.y, snapped: false };
+    return { x: pick.x, y: pick.y, snapped: true, nodeId: pick.nodeId, wallId: pick.wallId };
+  }
+
+  const MEASURE_STEP = Math.PI / 4;
+
+  // The second measuring point, held to 45-degree steps from `from` (and to the directions of
+  // walls at `from`, so angled walls measure along themselves). Along that line it lands where
+  // it crosses a wall face or construction line within `px` screen pixels of the finger,
+  // otherwise exactly at the finger's distance. free: no angle lock, as measureSnap.
+  function measureSnapFrom(from, world, px, free) {
+    if (free || !from) return measureSnap(world, px);
+    const raw = Math.atan2(world.y - from.y, world.x - from.x);
+    const ang = lockAngle(raw, MEASURE_STEP, directionsAt(from));
+    const dir = { x: Math.cos(ang), y: Math.sin(ang) };
+    const len = Math.max(0, G.dot(G.sub(world, from), dir));
+    const p = G.add(from, G.mul(dir, len));
+    const thr = px / scale();
+    const idx = app.geo().idx;
+    let best = null, bestD = thr;
+    const consider = (base, u, segLen) => {
+      const X = G.lineIntersect(from, dir, base, u);
+      if (!X || X.t <= 1e-6) return;
+      const along = G.dot(G.sub(X, base), u);
+      if (along < -1e-6 || along > segLen + 1e-6) return;
+      const d = G.dist(X, p);
+      if (d <= bestD) { bestD = d; best = { x: X.x, y: X.y }; }
+    };
+    for (const w of app.floor().walls) {
+      const f = G.wallFrame(w, idx);
+      if (f.len < 1e-6) continue;
+      consider(f.a, f.u, f.len);
+      consider(G.add(f.a, f.off), f.u, f.len);
+    }
+    for (const g of guideList()) {
+      const glen = G.dist(g.a, g.b);
+      if (glen > 1e-6) consider(g.a, G.mul(G.sub(g.b, g.a), 1 / glen), glen);
+    }
+    return best ? { ...best, snapped: true } : { x: p.x, y: p.y, snapped: false };
   }
 
   FP.interact = {
-    tapHit, measureSnap, outlinePoly, fixtureOutline, labelBox, toWorld,
+    tapHit, measureSnap, measureSnapFrom, outlinePoly, fixtureOutline, labelBox, toWorld,
     init, setTool, beginPlace, endPlace, hintText, mouse, fixtureHandles, snapFixtureToWalls, deleteSelection, rememberStair, rotateStair,
     setLocked, toggleLock, groupSelection, ungroupSelection, selectedGroup, mergeSelection, mergeAllWalls,
     rememberShapeStyle, saveFurniture, SHAPE_TOOLS,

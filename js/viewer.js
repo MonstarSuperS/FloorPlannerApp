@@ -2,7 +2,8 @@
 // Phones open in this mode (see device.js). The plan is driven by FP.gestures:
 //   drag pans, pinch zooms, double tap fits the plan to the screen,
 //   tap shows what's there and its sizes on a card,
-//   Measure: tap two points for the distance between them; drag either end to adjust.
+//   Measure: tap two points for the distance between them; drag either end to adjust. The
+//   second point keeps to 45-degree steps from the first unless Any angle is on (or Alt held).
 (function (root) {
   const FP = (root.FP = root.FP || {});
   const app = FP.app, G = FP.geom, M = FP.model;
@@ -21,7 +22,7 @@
   let canvas = null;
   let gestures = null;
   let inspected = null;  // { t, id } of the item whose card is showing
-  const measure = { on: false, a: null, b: null };
+  const measure = { on: false, a: null, b: null, free: false };
   let dragging = null;   // 'pan', or 'a' / 'b' for a measuring end
 
   const $ = (id) => document.getElementById(id);
@@ -45,6 +46,11 @@
     }
     $('infoNote').textContent = note || '';
     $('infoNote').hidden = !note;
+    // The angle switch belongs to measuring only.
+    $('infoActions').hidden = !measure.on;
+    const free = $('anyAngleBtn');
+    free.classList.toggle('on', measure.free);
+    free.setAttribute('aria-pressed', String(measure.free));
     card.hidden = false;
   }
 
@@ -83,17 +89,31 @@
     app.requestRender();
   }
 
-  function placePoint(world, type) {
-    const p = FP.interact.measureSnap(world, reach(type).snap);
-    if (!measure.a || measure.b) { measure.a = p; measure.b = null; }
-    else measure.b = p;
+  // Where a measuring end goes: the first lands on whatever is near; one placed or moved with
+  // the other end down keeps to 45-degree steps from it, unless freed.
+  function endPoint(world, type, other, alt) {
+    const px = reach(type).snap;
+    return other ? FP.interact.measureSnapFrom(other, world, px, measure.free || !!alt) : FP.interact.measureSnap(world, px);
+  }
+
+  function placePoint(world, type, alt) {
+    if (!measure.a || measure.b) { measure.a = endPoint(world, type, null); measure.b = null; }
+    else measure.b = endPoint(world, type, measure.a, alt);
+    refreshCard();
+    app.requestRender();
+  }
+
+  // Any angle: when turned off, the second end swings onto the nearest 45-degree step.
+  function setFree(on) {
+    measure.free = !!on;
+    if (!measure.free && measure.a && measure.b) measure.b = endPoint(measure.b, 'touch', measure.a);
     refreshCard();
     app.requestRender();
   }
 
   function setMeasuring(on) {
     measure.on = !!on;
-    measure.a = measure.b = null;
+    measure.a = measure.b = null; // Any angle is kept for next time
     dragging = null;
     inspected = null;
     const btn = $('measureBtn');
@@ -122,12 +142,12 @@
     enabled: () => app.readOnly,
     tap(p, info) {
       const world = toWorld(p);
-      if (measure.on) placePoint(world, info.pointerType);
+      if (measure.on) placePoint(world, info.pointerType, info.event && info.event.altKey);
       else inspect(world, info.pointerType);
     },
     doubleTap(p, info) {
       // While measuring, quick taps are points; otherwise a double tap fits the plan.
-      if (measure.on) placePoint(toWorld(p), info.pointerType);
+      if (measure.on) placePoint(toWorld(p), info.pointerType, info.event && info.event.altKey);
       else app.fitView();
     },
     dragStart(p, info) {
@@ -141,7 +161,8 @@
         app.emit('view');
         app.requestRender();
       } else if (dragging) {
-        measure[dragging] = FP.interact.measureSnap(toWorld(p), reach(info.pointerType).snap);
+        const other = measure[dragging === 'a' ? 'b' : 'a'];
+        measure[dragging] = endPoint(toWorld(p), info.pointerType, other, info.event && info.event.altKey);
         refreshCard();
         app.requestRender();
       }
@@ -329,6 +350,7 @@
     gestures = FP.gestures.attach(canvas, handlers);
     $('infoClose').onclick = () => closeCard();
     $('measureBtn').onclick = () => setMeasuring(!measure.on);
+    $('anyAngleBtn').onclick = () => setFree(!measure.free);
     $('viewSheetBtn').onclick = () => {
       const open = $('topbar').classList.toggle('show-view');
       $('viewSheetBtn').setAttribute('aria-expanded', String(open));
@@ -350,7 +372,7 @@
   }
 
   FP.viewer = {
-    init, onKey, drawOverlay, setMeasuring, REACH,
-    state: () => ({ inspected, measure: { on: measure.on, a: measure.a, b: measure.b }, dragging }),
+    init, onKey, drawOverlay, setMeasuring, setFree, REACH,
+    state: () => ({ inspected, measure: { on: measure.on, a: measure.a, b: measure.b, free: measure.free }, dragging }),
   };
 })(globalThis);

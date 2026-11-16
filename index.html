@@ -6,9 +6,9 @@
   <!-- Only the app's own files may run or style the page; drawings opened from files can never add code. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>FloorPlanner</title>
-  <script src="js/device.js"></script>
-  <script src="js/prefs.js"></script>
-  <link rel="stylesheet" href="css/app.css">
+  <script src="js/device.js?v=afc8db5"></script>
+  <script src="js/prefs.js?v=afc8db5"></script>
+  <link rel="stylesheet" href="css/app.css?v=afc8db5">
 </head>
 <body>
   <header id="topbar">
@@ -119,6 +119,9 @@
           </div>
           <dl id="infoRows"></dl>
           <p id="infoNote" hidden></p>
+          <div id="infoActions" hidden>
+            <button id="anyAngleBtn" class="toggle" aria-pressed="false" title="Let the second point go at any angle, not just 45-degree steps (or hold Alt)">Any angle</button>
+          </div>
         </section>
         <div id="emptyState" hidden>
           <h2>Open a drawing</h2>
@@ -291,26 +294,26 @@
     </form>
   </dialog>
 
-  <script src="js/units.js"></script>
-  <script src="js/geometry.js"></script>
-  <script src="js/model.js"></script>
-  <script src="js/merge.js"></script>
-  <script src="js/options.js"></script>
-  <script src="js/rooms.js"></script>
-  <script src="js/fixtures.js"></script>
-  <script src="js/shapes.js"></script>
-  <script src="js/render.js"></script>
-  <script src="js/stairs.js"></script>
-  <script src="js/groups.js"></script>
-  <script src="js/describe.js"></script>
-  <script src="js/gestures.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/fileio.js"></script>
-  <script src="js/exporter.js"></script>
-  <script src="js/interact.js"></script>
-  <script src="js/viewer.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/settings.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/units.js?v=afc8db5"></script>
+  <script src="js/geometry.js?v=afc8db5"></script>
+  <script src="js/model.js?v=afc8db5"></script>
+  <script src="js/merge.js?v=afc8db5"></script>
+  <script src="js/options.js?v=afc8db5"></script>
+  <script src="js/rooms.js?v=afc8db5"></script>
+  <script src="js/fixtures.js?v=afc8db5"></script>
+  <script src="js/shapes.js?v=afc8db5"></script>
+  <script src="js/render.js?v=afc8db5"></script>
+  <script src="js/stairs.js?v=afc8db5"></script>
+  <script src="js/groups.js?v=afc8db5"></script>
+  <script src="js/describe.js?v=afc8db5"></script>
+  <script src="js/gestures.js?v=afc8db5"></script>
+  <script src="js/app.js?v=afc8db5"></script>
+  <script src="js/fileio.js?v=afc8db5"></script>
+  <script src="js/exporter.js?v=afc8db5"></script>
+  <script src="js/interact.js?v=afc8db5"></script>
+  <script src="js/viewer.js?v=afc8db5"></script>
+  <script src="js/ui.js?v=afc8db5"></script>
+  <script src="js/settings.js?v=afc8db5"></script>
+  <script src="js/main.js?v=afc8db5"></script>
 </body>
 </html>

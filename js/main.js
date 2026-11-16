@@ -30,13 +30,14 @@
       if (!session || !session.doc) throw null;
       const handle = session.hasHandle ? await FP.fileio.recallHandle() : null;
       await FP.fileio.restoreSession(session, handle);
-      app.renderNow();
     } catch (err) {
       if (err) console.error(err);
       app.loadDoc(FP.model.createDoc(FP.prefs.get().defaults));
       app.resetView();
-      app.renderNow();
       if (err) app.toast('The drawing from last time could not be reopened, so a new one was started.', true);
     }
+    // Drawn outside the restore, so a drawing error can never replace the reopened drawing (and
+    // the copy kept in the browser) with a new one.
+    try { app.renderNow(); } catch (err) { console.error(err); }
   }
 })(globalThis);

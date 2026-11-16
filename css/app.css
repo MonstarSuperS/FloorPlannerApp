@@ -362,3 +362,5 @@ html.compact .export-form { flex-direction: column; gap: 10px; }
 html.compact .export-preview { order: -1; }
 html.compact .export-preview .actions { margin-top: 8px; }
 html.compact .export-options h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#infoActions { display: flex; gap: 6px; margin-top: 8px; }
+html.compact #infoActions button { min-height: 36px; padding: 4px 12px; }
