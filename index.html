@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Only the app's own files may run or style the page; drawings opened from files can never add code. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>FloorPlanner</title>
+  <script src="js/prefs.js"></script>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand"><strong>FloorPlanner</strong><span id="docName"></span></div>
+    <div class="group">
+      <button id="newBtn">New</button>
+      <button id="openBtn" title="Ctrl+O">Open</button>
+      <button id="saveBtn" title="Ctrl+S">Save</button>
+      <button id="saveAsBtn" title="Ctrl+Shift+S">Save As</button>
+      <button id="exportBtn" class="primary">Export</button>
+    </div>
+    <div class="group">
+      <button id="undoBtn" title="Ctrl+Z">Undo</button>
+      <button id="redoBtn" title="Ctrl+Y">Redo</button>
+    </div>
+    <div class="group labelled">
+      <span>Units</span>
+      <div class="seg" id="unitsSeg">
+        <button data-value="ftin">ft/in</button>
+        <button data-value="in">in</button>
+        <button data-value="cm">cm</button>
+        <button data-value="mm">mm</button>
+      </div>
+    </div>
+    <div class="group labelled">
+      <span>Grid</span>
+      <select id="gridSize" aria-label="Grid and snap size"></select>
+      <button id="tSnap" class="toggle" title="Snap to the grid while drawing and dragging. Hold Alt to bypass.">Snap</button>
+      <button id="tGrid" class="toggle">Show</button>
+    </div>
+    <div class="group labelled">
+      <span title="Angle steps used while holding Shift">Shift</span>
+      <div class="seg" id="angleSeg">
+        <button data-value="15">15&deg;</button>
+        <button data-value="45">45&deg;</button>
+        <button data-value="90">90&deg;</button>
+      </div>
+    </div>
+    <div class="group">
+      <button id="tLengths" class="toggle">Lengths</button>
+      <button id="tBoth" class="toggle" title="Show the length of both faces of each wall">Both sides</button>
+      <button id="tRooms" class="toggle">Rooms</button>
+      <button id="tGuides" class="toggle" title="Show construction lines and snap to them">Constr. lines</button>    </div>
+    <div class="group right">
+      <button id="zoomOut" aria-label="Zoom out">&minus;</button>
+      <span id="zoomLabel" class="zoom"></span>
+      <button id="zoomIn" aria-label="Zoom in">+</button>
+      <button id="fitBtn" title="Fit the plan on screen (0)">Fit</button>
+      <button id="resetBtn" title="Return to the default zoom and origin">Reset</button>
+      <button id="themeBtn" class="icon"></button>
+      <button id="settingsBtn">Settings</button>
+    </div>
+  </header>
+
+  <main>
+    <aside id="left">
+      <section id="tools" class="panel">
+        <h2>Tools</h2>
+        <div class="tool-grid">
+          <button data-tool="select" title="V">Select</button>
+          <button data-tool="pan" title="H, or hold Space, or drag with the middle mouse button">Pan</button>
+          <button data-tool="wall" data-wall="exterior" title="E">Exterior Wall</button>
+          <button data-tool="wall" data-wall="interior" title="W">Interior Wall</button>
+          <button data-tool="dim" title="D">Dimension</button>
+          <button data-tool="text" title="T">Text</button>
+          <button data-tool="stairs" title="S. Click the bottom of the stairs, then the direction they go up.">Stairs</button>
+          <button data-tool="guide" data-line="guide" title="C. Reference lines that aren't walls. Everything can snap to them.">Construction Line</button>
+          <button data-tool="guide" data-line="divider" title="B. Splits a room in two without a wall, such as a kitchen from a dining room. Draw it from wall to wall.">Room Divider</button>
+        </div>
+        <h2 class="sub">Draw</h2>
+        <div class="tool-grid">
+          <button data-tool="shape" data-shape="line" title="L. Click the start, then the end, or type a length.">Line</button>
+          <button data-tool="shape" data-shape="poly" title="P. Click each corner. Click the first point to close it, or double-click to end it open.">Polyline</button>
+          <button data-tool="shape" data-shape="rect" title="Click two opposite corners, or type width x depth (36 x 20).">Rectangle</button>
+          <button data-tool="shape" data-shape="circle" title="Click the centre, then the edge, or type the diameter.">Circle</button>
+          <button data-tool="shape" data-shape="ellipse" title="Click the centre, then a corner of the box around it, or type width x depth.">Ellipse</button>
+          <button data-tool="shape" data-shape="arc" title="Click the start, then the end, then where it bends through.">Arc</button>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Wall Thickness</h2>
+        <label class="field"><span>Exterior</span><input id="extThick" type="text" autocomplete="off"></label>
+        <label class="field"><span>Interior</span><input id="intThick" type="text" autocomplete="off"></label>
+      </section>
+      <section class="panel grow">
+        <h2>Library</h2>
+        <p class="muted small">Drag an item onto the plan.</p>
+        <div id="library"></div>
+      </section>
+    </aside>
+
+    <div id="center">
+      <div id="canvasWrap">
+        <canvas id="plan" tabindex="0" aria-label="Floor plan drawing area"></canvas>
+        <div id="designBar" title="Design options: try changes to this floor, such as a renovation, without touching the as-is plan.">
+          <span>Design</span>
+          <select id="optionSelect" aria-label="Design option"></select>
+          <label class="check inline" id="changesRow" title="Removed or moved items dashed in red where they were; new or changed items in green; room area changes under room names."><input type="checkbox" id="tChanges"><span>Show changes</span></label>
+        </div>
+      </div>
+      <div id="floorBar">
+        <div id="floorTabs"></div>
+        <button id="floorDown" title="Move this floor one level lower" aria-label="Move this floor one level lower">&#9664;</button>
+        <button id="floorUp" title="Move this floor one level higher" aria-label="Move this floor one level higher">&#9654;</button>
+        <button id="renFloor" title="Rename this floor">Rename</button>
+        <button id="addFloor" title="Add a floor">+ Floor</button>
+        <button id="dupFloor" title="Copy this floor">Duplicate</button>
+        <button id="delFloor" title="Delete this floor">Delete</button>
+        <label class="inline-select" title="Fade or hide stairs while you work under them. Clicks pass through faded or hidden stairs. Exports always show them.">
+          <span>Stairs</span>
+          <select id="stairView"><option value="show">Shown</option><option value="fade">Faded</option><option value="hide">Hidden</option></select>
+        </label>
+        <label class="check inline" title="The nearest visible floor below, shown faintly underneath. Hide a floor with its eye button."><input type="checkbox" id="tGhost"><span>Floor below</span></label>
+        <label class="check inline" title="The nearest visible floor above, overlaid faintly in purple. Hide a floor with its eye button."><input type="checkbox" id="tGhostAbove"><span>Floor above</span></label>
+      </div>
+      <footer id="status">
+        <span id="hint"></span>
+        <span id="saveState"></span>
+        <span id="coords"></span>
+      </footer>
+    </div>
+
+    <aside id="right">
+      <section class="panel grow">
+        <h2>Inspector</h2>
+        <div id="inspector"></div>
+      </section>
+    </aside>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="customDialog">
+    <form method="dialog">
+      <h2>New Custom Fixture</h2>
+      <label class="field"><span>Name</span><input id="cfName" type="text" placeholder="Corner pantry" autocomplete="off"></label>
+      <label class="field"><span>Looks like</span><select id="cfBase"></select></label>
+      <label class="field"><span>Width</span><input id="cfWidth" type="text" autocomplete="off"></label>
+      <label class="field"><span>Depth</span><input id="cfDepth" type="text" autocomplete="off"></label>
+      <div class="actions end">
+        <button type="button" id="cfCancel">Cancel</button>
+        <button type="submit" id="cfSave" class="primary">Add to Library</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="widthDialog">
+    <form method="dialog">
+      <h2 id="wdTitle">Custom width</h2>
+      <label class="field"><span>Width</span><input id="wdWidth" type="text" autocomplete="off"></label>
+      <div class="actions end">
+        <button type="button" id="wdCancel">Cancel</button>
+        <button type="submit" id="wdSave" class="primary">Use Width</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog">
+    <form method="dialog">
+      <h2>Settings</h2>
+      <p class="muted small">Saved for you on this computer, not in drawing files.</p>
+      <h3>Appearance</h3>
+      <label class="field"><span>Theme</span>
+        <select id="stTheme">
+          <option value="system">Match system</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <h3>New drawings start with</h3>
+      <label class="field"><span>Units</span>
+        <select id="stUnits"><option value="ftin">Feet and inches</option><option value="in">Inches</option><option value="cm">Centimetres</option><option value="mm">Millimetres</option></select>
+      </label>
+      <label class="field"><span>Grid size</span>
+        <select id="stGridSize"></select>
+      </label>
+      <label class="field"><span>Shift angle</span>
+        <select id="stAngle"><option value="15">15&deg;</option><option value="45">45&deg;</option><option value="90">90&deg;</option></select>
+      </label>
+      <label class="field"><span>Exterior wall</span><input id="stExt" type="text" autocomplete="off"></label>
+      <label class="field"><span>Interior wall</span><input id="stInt" type="text" autocomplete="off"></label>
+      <label class="field" title="A dimension attached to a fixture, door, window or stair is removed once that point moves farther than this from where it was drawn"><span>Dimension follows up to</span><input id="stDimMove" type="text" autocomplete="off"></label>
+      <label class="field" title="A dimension attached to an item is removed once the item turns more than this from where it was when the dimension was drawn"><span>Dimension follows turns up to (&deg;)</span><input id="stDimTurn" type="number" min="0" max="180" step="1"></label>
+      <div class="check-grid">
+        <label class="check"><input type="checkbox" id="stSnap"><span>Snap to grid</span></label>
+        <label class="check"><input type="checkbox" id="stGrid"><span>Show grid</span></label>
+        <label class="check"><input type="checkbox" id="stLengths"><span>Wall lengths</span></label>
+        <label class="check"><input type="checkbox" id="stBoth"><span>Both wall sides</span></label>
+        <label class="check"><input type="checkbox" id="stRooms"><span>Room labels</span></label>
+        <label class="check"><input type="checkbox" id="stGhost"><span>Floor below</span></label>
+        <label class="check"><input type="checkbox" id="stGhostAbove"><span>Floor above</span></label>
+        <label class="check"><input type="checkbox" id="stGuides"><span>Construction lines</span></label>
+      </div>
+      <button type="button" id="stFromDrawing">Copy from current drawing</button>
+      <h3>Export starts with</h3>
+      <label class="field"><span>Paper</span><select id="stPaper"></select></label>
+      <label class="field"><span>Orientation</span>
+        <select id="stOrientation"><option value="auto">Automatic</option><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
+      </label>
+      <label class="field"><span>Scale</span><select id="stScale"></select></label>
+      <label class="check apply"><input type="checkbox" id="stApply"><span>Also apply these to the drawing that's open now</span></label>
+      <div class="actions">
+        <button type="button" id="stImport">Import</button>
+        <button type="button" id="stExport">Export</button>
+        <button type="button" id="stReset">Reset to defaults</button>
+      </div>
+      <div class="actions end">
+        <button type="button" id="stCancel">Cancel</button>
+        <button type="submit" id="stSave" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="exportDialog">
+    <form method="dialog" class="export-form">
+      <div class="export-options">
+        <h2>Export</h2>
+        <label class="field"><span>Format</span>
+          <select id="exFormat">
+            <option value="pdf">PDF</option>
+            <option value="png">PNG image</option>
+            <option value="jpeg">JPEG image</option>
+          </select>
+        </label>
+        <label class="field pdf-only"><span>Paper</span><select id="exPaper"></select></label>
+        <label class="field pdf-only"><span>Orientation</span>
+          <select id="exOrientation">
+            <option value="auto">Automatic</option>
+            <option value="landscape">Landscape</option>
+            <option value="portrait">Portrait</option>
+          </select>
+        </label>
+        <label class="field pdf-only"><span>Scale</span><select id="exScale"></select></label>
+        <label class="check pdf-only"><input type="checkbox" id="exAllFloors"><span>All floors, one per page</span></label>
+        <label class="check pdf-only" id="exAllOptionsRow"><input type="checkbox" id="exAllOptions"><span>As-is and every design option, one per page</span></label>
+        <label class="field image-only"><span>Resolution</span>
+          <select id="exResolution">
+            <option value="4">Standard</option>
+            <option value="8" selected>High</option>
+            <option value="16">Very high</option>
+            <option value="24">Maximum</option>
+          </select>
+        </label>
+        <label class="check" id="exTransparentRow" hidden><input type="checkbox" id="exTransparent"><span>Transparent background</span></label>
+        <h3>Include</h3>
+        <label class="check"><input type="checkbox" id="exLengths" checked><span>Wall lengths</span></label>
+        <label class="check"><input type="checkbox" id="exRooms" checked><span>Room names and areas</span></label>
+        <label class="check"><input type="checkbox" id="exFixtures" checked><span>Fixtures and drawn shapes</span></label>
+        <label class="check"><input type="checkbox" id="exDims" checked><span>Dimensions</span></label>
+        <label class="check"><input type="checkbox" id="exLabels" checked><span>Text</span></label>
+        <label class="check"><input type="checkbox" id="exGuides"><span>Construction lines</span></label>
+        <label class="check" id="exChangesRow"><input type="checkbox" id="exChanges" checked><span>Design option changes (red demolition, green new)</span></label>
+        <label class="check"><input type="checkbox" id="exGrid"><span>Grid</span></label>
+      </div>
+      <div class="export-preview">
+        <canvas id="exPreview" width="440" height="300"></canvas>
+        <p id="exNote" class="export-note"></p>
+        <div class="actions end">
+          <button type="button" id="exCancel">Cancel</button>
+          <button type="button" id="exGo" class="primary">Export</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/units.js"></script>
+  <script src="js/geometry.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/merge.js"></script>
+  <script src="js/options.js"></script>
+  <script src="js/rooms.js"></script>
+  <script src="js/fixtures.js"></script>
+  <script src="js/shapes.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/stairs.js"></script>
+  <script src="js/groups.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/fileio.js"></script>
+  <script src="js/exporter.js"></script>
+  <script src="js/interact.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
