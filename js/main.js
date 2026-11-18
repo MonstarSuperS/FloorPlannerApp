@@ -16,6 +16,7 @@
     // Phones open view-only (device.js); set before the panels build so they match from the start.
     app.setMode(FP.device.mode);
     FP.viewer.init(canvas);
+    FP.walker.init(canvas);
     FP.ui.init();
     FP.settingsUI.init();
     FP.fileio.initDropTarget();

@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <!-- Only the app's own files may run or style the page; drawings opened from files can never add code. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>FloorPlanner</title>
-  <script src="js/device.js?v=afc8db5"></script>
-  <script src="js/prefs.js?v=afc8db5"></script>
-  <link rel="stylesheet" href="css/app.css?v=afc8db5">
+  <script src="js/device.js?v=1ffd89d"></script>
+  <script src="js/prefs.js?v=1ffd89d"></script>
+  <link rel="stylesheet" href="css/app.css?v=1ffd89d">
 </head>
 <body>
   <header id="topbar">
@@ -17,12 +17,16 @@
       <button id="newBtn" class="edit-only">New</button>
       <button id="openBtn" title="Ctrl+O">Open</button>
       <button id="saveBtn" class="edit-only" title="Ctrl+S">Save</button>
-      <button id="saveAsBtn" class="edit-only" title="Ctrl+Shift+S">Save As</button>
+      <button id="saveAsBtn" class="edit-only full-only" title="Ctrl+Shift+S">Save As</button>
       <button id="exportBtn" class="primary">Export</button>
     </div>
     <div class="group view-only-ui">
-      <button id="viewSheetBtn" class="compact-only" aria-expanded="false" title="Units and what the plan shows">View</button>
       <button id="measureBtn" class="toggle" aria-pressed="false" title="Tap two points to measure between them (M)">Measure</button>
+      <button id="drawBtn" title="Draw walls by walking around a room and typing each length">Draw</button>
+    </div>
+    <div class="group compact-only">
+      <button id="viewSheetBtn" aria-expanded="false" title="Units and what the plan shows">View</button>
+      <button id="viewDoneBtn" class="edit-only" title="Stop drawing and go back to looking">Done</button>
     </div>
     <div class="group edit-only">
       <button id="undoBtn" title="Ctrl+Z">Undo</button>
@@ -37,13 +41,13 @@
         <button data-value="mm">mm</button>
       </div>
     </div>
-    <div class="group labelled edit-only">
+    <div class="group labelled edit-only full-only">
       <span>Grid</span>
       <select id="gridSize" aria-label="Grid and snap size"></select>
       <button id="tSnap" class="toggle" title="Snap to the grid while drawing and dragging. Hold Alt to bypass.">Snap</button>
       <button id="tGrid" class="toggle">Show</button>
     </div>
-    <div class="group labelled edit-only">
+    <div class="group labelled edit-only full-only">
       <span title="Angle steps used while holding Shift">Shift</span>
       <div class="seg" id="angleSeg">
         <button data-value="15">15&deg;</button>
@@ -63,12 +67,12 @@
       <button id="fitBtn" title="Fit the plan on screen (0)">Fit</button>
       <button id="resetBtn" class="full-only" title="Return to the default zoom and origin">Reset</button>
       <button id="themeBtn" class="icon"></button>
-      <button id="settingsBtn" class="edit-only">Settings</button>
+      <button id="settingsBtn" class="edit-only full-only">Settings</button>
     </div>
   </header>
 
   <main>
-    <aside id="left" class="edit-only">
+    <aside id="left" class="edit-only full-only">
       <section id="tools" class="panel">
         <h2>Tools</h2>
         <div class="tool-grid">
@@ -81,6 +85,7 @@
           <button data-tool="stairs" title="S. Click the bottom of the stairs, then the direction they go up.">Stairs</button>
           <button data-tool="guide" data-line="guide" title="C. Reference lines that aren't walls. Everything can snap to them.">Construction Line</button>
           <button data-tool="guide" data-line="divider" title="B. Splits a room in two without a wall, such as a kitchen from a dining room. Draw it from wall to wall.">Room Divider</button>
+          <button data-tool="walk" class="span" title="K. Walk around a room and type each wall as you measure it: R 10', 36, door 28, 3ft 2&quot; @180.">Walk the Walls</button>
         </div>
         <h2 class="sub">Draw</h2>
         <div class="tool-grid">
@@ -124,34 +129,92 @@
           </div>
         </section>
         <div id="emptyState" hidden>
-          <h2>Open a drawing</h2>
-          <p>Open a FloorPlanner drawing (.fplan) to look around it, check sizes, measure and export it.</p>
-          <button id="emptyOpenBtn" class="primary">Open</button>
+          <h2>Open or draw a plan</h2>
+          <p>Open a FloorPlanner drawing (.fplan) to look around it, check sizes, measure and export it. Or draw one by walking around each room and typing what the tape says.</p>
+          <div class="actions">
+            <button id="emptyOpenBtn" class="primary">Open</button>
+            <button id="emptyDrawBtn">Draw a plan</button>
+          </div>
         </div>
       </div>
+      <section id="walkPanel" hidden aria-label="Walk the walls">
+        <div class="walk-main">
+          <p id="walkStatus" role="status" aria-live="polite"></p>
+          <form id="walkForm" class="walk-entry" autocomplete="off">
+            <span id="walkHeading" class="walk-heading" aria-hidden="true">&#8594;</span>
+            <input id="walkInput" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Next wall: a length, a direction, a door or window, or close">
+            <button type="button" id="walkKeyboard" class="toggle compact-only" aria-pressed="false" aria-label="Type with the keyboard" title="Type with the keyboard">abc</button>
+            <button type="submit" id="walkGo" class="primary">Add</button>
+          </form>
+        </div>
+        <div class="walk-pad">
+          <div class="walk-dirs" role="group" aria-label="Direction">
+            <button type="button" data-insert="&#8598;" data-kind="dir" aria-label="Up and left (135 degrees)">&#8598;</button>
+            <button type="button" data-insert="&#8593;" data-kind="dir" aria-label="Up (90 degrees)">&#8593;</button>
+            <button type="button" data-insert="&#8599;" data-kind="dir" aria-label="Up and right (45 degrees)">&#8599;</button>
+            <button type="button" data-insert="&#8592;" data-kind="dir" aria-label="Left (180 degrees)">&#8592;</button>
+            <span class="walk-hub" aria-hidden="true"></span>
+            <button type="button" data-insert="&#8594;" data-kind="dir" aria-label="Right (0 degrees)">&#8594;</button>
+            <button type="button" data-insert="&#8601;" data-kind="dir" aria-label="Down and left (225 degrees)">&#8601;</button>
+            <button type="button" data-insert="&#8595;" data-kind="dir" aria-label="Down (270 degrees)">&#8595;</button>
+            <button type="button" data-insert="&#8600;" data-kind="dir" aria-label="Down and right (315 degrees)">&#8600;</button>
+            <button type="button" data-insert="L" data-kind="dir" title="Turn left from the last wall (L45 for 45 degrees)">L</button>
+            <button type="button" data-insert="R" data-kind="dir" title="Turn right from the last wall (R45 for 45 degrees)">R</button>
+            <button type="button" id="walkType" title="The kind of wall the next walls are (ext / int)">Exterior</button>
+          </div>
+          <div class="walk-keys compact-only" role="group" aria-label="Number keys">
+            <button type="button" data-insert="7">7</button>
+            <button type="button" data-insert="8">8</button>
+            <button type="button" data-insert="9">9</button>
+            <button type="button" id="walkUnitBig" data-insert="' ">ft</button>
+            <button type="button" data-insert="4">4</button>
+            <button type="button" data-insert="5">5</button>
+            <button type="button" data-insert="6">6</button>
+            <button type="button" id="walkUnitSmall" data-insert='" '>in</button>
+            <button type="button" data-insert="1">1</button>
+            <button type="button" data-insert="2">2</button>
+            <button type="button" data-insert="3">3</button>
+            <button type="button" data-insert="/" aria-label="Fraction slash">/</button>
+            <button type="button" data-insert="0">0</button>
+            <button type="button" data-insert=".">.</button>
+            <button type="button" data-insert=" " aria-label="Space">&#9251;</button>
+            <button type="button" id="walkBack" aria-label="Delete">&#9003;</button>
+          </div>
+          <div class="walk-actions" role="group" aria-label="Walk">
+            <button type="button" data-insert="door" data-kind="word" title="A door in this wall: door 28 is 28 wide. Measure up to it, then the door, then on: 36, door 28, 40">Door</button>
+            <button type="button" data-insert="window" data-kind="word" title="A window in this wall: window 36">Window</button>
+            <button type="button" data-insert="opening" data-kind="word" title="A doorway with no door: opening 36">Opening</button>
+            <button type="button" id="walkToWall" title="Run this wall to the wall straight ahead">To wall</button>
+            <button type="button" id="walkClose" title="Join back to where this room started">Close</button>
+            <button type="button" id="walkUndo" title="Take back the last wall (Ctrl+Z)">Undo</button>
+            <button type="button" id="walkFlip" title="Put the walls' thickness on the other side">Flip</button>
+            <button type="button" id="walkFinish" title="End this run of walls without closing a room">Finish</button>
+          </div>
+        </div>
+      </section>
       <div id="floorBar">
         <div id="floorTabs"></div>
-        <button id="floorDown" class="edit-only" title="Move this floor one level lower" aria-label="Move this floor one level lower">&#9664;</button>
-        <button id="floorUp" class="edit-only" title="Move this floor one level higher" aria-label="Move this floor one level higher">&#9654;</button>
-        <button id="renFloor" class="edit-only" title="Rename this floor">Rename</button>
+        <button id="floorDown" class="edit-only full-only" title="Move this floor one level lower" aria-label="Move this floor one level lower">&#9664;</button>
+        <button id="floorUp" class="edit-only full-only" title="Move this floor one level higher" aria-label="Move this floor one level higher">&#9654;</button>
+        <button id="renFloor" class="edit-only full-only" title="Rename this floor">Rename</button>
         <button id="addFloor" class="edit-only" title="Add a floor">+ Floor</button>
-        <button id="dupFloor" class="edit-only" title="Copy this floor">Duplicate</button>
-        <button id="delFloor" class="edit-only" title="Delete this floor">Delete</button>
-        <label class="inline-select edit-only" title="Fade or hide stairs while you work under them. Clicks pass through faded or hidden stairs. Exports always show them.">
+        <button id="dupFloor" class="edit-only full-only" title="Copy this floor">Duplicate</button>
+        <button id="delFloor" class="edit-only full-only" title="Delete this floor">Delete</button>
+        <label class="inline-select edit-only full-only" title="Fade or hide stairs while you work under them. Clicks pass through faded or hidden stairs. Exports always show them.">
           <span>Stairs</span>
           <select id="stairView"><option value="show">Shown</option><option value="fade">Faded</option><option value="hide">Hidden</option></select>
         </label>
         <label class="check inline full-only" title="The nearest visible floor below, shown faintly underneath. Hide a floor with its eye button."><input type="checkbox" id="tGhost"><span>Floor below</span></label>
         <label class="check inline full-only" title="The nearest visible floor above, overlaid faintly in purple. Hide a floor with its eye button."><input type="checkbox" id="tGhostAbove"><span>Floor above</span></label>
       </div>
-      <footer id="status" class="edit-only">
+      <footer id="status" class="edit-only full-only">
         <span id="hint"></span>
         <span id="saveState"></span>
         <span id="coords"></span>
       </footer>
     </div>
 
-    <aside id="right" class="edit-only">
+    <aside id="right" class="edit-only full-only">
       <section class="panel grow">
         <h2>Inspector</h2>
         <div id="inspector"></div>
@@ -294,26 +357,28 @@
     </form>
   </dialog>
 
-  <script src="js/units.js?v=afc8db5"></script>
-  <script src="js/geometry.js?v=afc8db5"></script>
-  <script src="js/model.js?v=afc8db5"></script>
-  <script src="js/merge.js?v=afc8db5"></script>
-  <script src="js/options.js?v=afc8db5"></script>
-  <script src="js/rooms.js?v=afc8db5"></script>
-  <script src="js/fixtures.js?v=afc8db5"></script>
-  <script src="js/shapes.js?v=afc8db5"></script>
-  <script src="js/render.js?v=afc8db5"></script>
-  <script src="js/stairs.js?v=afc8db5"></script>
-  <script src="js/groups.js?v=afc8db5"></script>
-  <script src="js/describe.js?v=afc8db5"></script>
-  <script src="js/gestures.js?v=afc8db5"></script>
-  <script src="js/app.js?v=afc8db5"></script>
-  <script src="js/fileio.js?v=afc8db5"></script>
-  <script src="js/exporter.js?v=afc8db5"></script>
-  <script src="js/interact.js?v=afc8db5"></script>
-  <script src="js/viewer.js?v=afc8db5"></script>
-  <script src="js/ui.js?v=afc8db5"></script>
-  <script src="js/settings.js?v=afc8db5"></script>
-  <script src="js/main.js?v=afc8db5"></script>
+  <script src="js/units.js?v=1ffd89d"></script>
+  <script src="js/geometry.js?v=1ffd89d"></script>
+  <script src="js/model.js?v=1ffd89d"></script>
+  <script src="js/merge.js?v=1ffd89d"></script>
+  <script src="js/options.js?v=1ffd89d"></script>
+  <script src="js/rooms.js?v=1ffd89d"></script>
+  <script src="js/fixtures.js?v=1ffd89d"></script>
+  <script src="js/shapes.js?v=1ffd89d"></script>
+  <script src="js/render.js?v=1ffd89d"></script>
+  <script src="js/stairs.js?v=1ffd89d"></script>
+  <script src="js/groups.js?v=1ffd89d"></script>
+  <script src="js/describe.js?v=1ffd89d"></script>
+  <script src="js/gestures.js?v=1ffd89d"></script>
+  <script src="js/walk.js?v=1ffd89d"></script>
+  <script src="js/app.js?v=1ffd89d"></script>
+  <script src="js/fileio.js?v=1ffd89d"></script>
+  <script src="js/exporter.js?v=1ffd89d"></script>
+  <script src="js/interact.js?v=1ffd89d"></script>
+  <script src="js/viewer.js?v=1ffd89d"></script>
+  <script src="js/walker.js?v=1ffd89d"></script>
+  <script src="js/ui.js?v=1ffd89d"></script>
+  <script src="js/settings.js?v=1ffd89d"></script>
+  <script src="js/main.js?v=1ffd89d"></script>
 </body>
 </html>

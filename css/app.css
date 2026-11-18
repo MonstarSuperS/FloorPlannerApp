@@ -364,3 +364,51 @@ html.compact .export-preview .actions { margin-top: 8px; }
 html.compact .export-options h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #infoActions { display: flex; gap: 6px; margin-top: 8px; }
 html.compact #infoActions button { min-height: 36px; padding: 4px 12px; }
+
+/* ---------- Walk the walls ---------- */
+#walkPanel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.walk-main { flex: 1 1 320px; min-width: 0; }
+#walkStatus { margin: 0 0 6px; min-height: 2.7em; color: var(--muted); font-size: 12px; }
+#walkStatus.error { color: var(--danger); font-weight: 500; }
+.walk-entry { display: flex; gap: 6px; align-items: center; }
+.walk-entry input { flex: 1; min-width: 0; padding: 6px 8px; font-size: 15px; }
+.walk-heading { flex: none; width: 24px; text-align: center; font-size: 18px; color: var(--accent); }
+.walk-pad { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.walk-dirs { display: grid; grid-template-columns: repeat(3, 44px); gap: 3px; }
+.walk-dirs button { padding: 3px 0; font-size: 15px; }
+.walk-dirs #walkType { padding: 3px 2px; font-size: 11px; }
+.walk-hub { display: block; }
+.walk-keys { display: none; }
+.walk-actions { display: flex; flex-wrap: wrap; gap: 4px; max-width: 330px; }
+
+/* On a phone the pad is how you type: big keys, directions beside the numbers. */
+html.compact #walkPanel {
+  display: block;
+  padding: 6px calc(8px + env(safe-area-inset-right)) 6px calc(8px + env(safe-area-inset-left));
+}
+html.compact #walkStatus { font-size: 13px; min-height: 0; margin-bottom: 5px; }
+html.compact .walk-entry input { font-size: 17px; min-height: 40px; }
+html.compact .walk-entry button { min-height: 40px; padding: 6px 12px; font-size: 15px; }
+html.compact .walk-pad { flex-wrap: nowrap; gap: 8px; margin-top: 6px; display: grid; grid-template-columns: 3fr 4fr; }
+html.compact .walk-dirs { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+html.compact .walk-keys { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+html.compact .walk-pad button { min-height: 40px; padding: 4px 0; font-size: 17px; }
+html.compact .walk-dirs #walkType { font-size: 12px; }
+html.compact .walk-actions { grid-column: 1 / -1; max-width: none; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; }
+html.compact .walk-actions button { flex: none; padding: 4px 12px; font-size: 15px; }
+/* While drawing on a phone, the floor bar's management buttons give way to the pad. */
+html.compact.walking #floorBar { padding-bottom: 6px; }
+html.compact.walking #walkPanel { padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+html.compact .group.compact-only { display: flex !important; }
+/* Typing with the phone's keyboard: only the status and the box show above it. */
+html.compact.walk-typing #walkPanel .walk-pad { display: none; }
+html.compact.walk-typing #floorBar { display: none; }
+#emptyState .actions { justify-content: center; margin-top: 0; }

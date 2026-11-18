@@ -1797,6 +1797,7 @@
   function onPointerDown(e) {
     canvas.focus({ preventScroll: true });
     if (app.readOnly) return; // view-only: FP.viewer handles the plan through FP.gestures
+    if (app.tool === 'walk' && e.button === 0) return; // FP.walker's gestures: tap to start, drag to pan
     updateMouse(e);
     const world = { x: mouse.x, y: mouse.y };
 
@@ -2314,6 +2315,8 @@
     if (isEditing(e)) return;
     // View-only: no editing keys at all, only the viewer's own (Esc, Fit, Open, measure).
     if (app.readOnly) { if (FP.viewer) FP.viewer.onKey(e); return; }
+    // Walking the walls: typing goes to the walk's command box even when the plan has focus.
+    if (app.tool === 'walk' && FP.walker && FP.walker.onKey(e)) return;
     const key = e.key;
     const ctrl = e.ctrlKey || e.metaKey;
     mouse.shift = e.shiftKey;
@@ -2439,6 +2442,7 @@
     if (lower === 's') return setTool('stairs');
     if (lower === 'l') return setTool('shape', 'line');
     if (lower === 'p') return setTool('shape', 'poly');
+    if (lower === 'k') return setTool('walk');
     if (lower === 'r') {
       const by = e.shiftKey ? 15 : 90;
       if (selectedGroup()) {
@@ -3070,7 +3074,10 @@
     Rn.drawPlan(R, floor, geo, viewOptions(w, h));
     R.taken = null; // what's drawn over the plan (a measurement, a selection) always shows
     if (app.readOnly) { if (FP.viewer) FP.viewer.drawOverlay(R, floor, geo); }
-    else drawOverlay(R, floor, geo);
+    else {
+      drawOverlay(R, floor, geo);
+      if (app.tool === 'walk' && FP.walker) FP.walker.drawOverlay(R, floor, geo);
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
@@ -3089,6 +3096,9 @@
     window.addEventListener('blur', () => { spaceHeld = false; });
     app.setRenderer(render);
     window.addEventListener('resize', () => app.requestRender());
+    // The plan's area also changes size without the window doing so: the View sheet opening or
+    // closing, the walk pad showing, a phone keyboard. Redraw whenever it does.
+    if (typeof ResizeObserver === 'function') new ResizeObserver(() => app.requestRender()).observe(canvas.parentElement);
     updateCursor();
   }
 
@@ -3133,6 +3143,7 @@
       if (!d) return 'Click where the arc starts.';
       return d.pts.length === 1 ? `Click where the arc ends, or type the distance between its ends.${tail}` : 'Move to bend the arc through the cursor, then click.';
     }
+    if (app.tool === 'walk') return `Type each wall as you measure it, then Enter: R 10', 36, door 28, 3ft 2" @180. Click a corner or wall to start there; drag to pan. Esc returns to Select.`;
     if (app.tool === 'text') return 'Click where the text should go.';
     if (app.tool === 'pan') return 'Drag to pan the view.';
     if (selectedGroup()) return 'Drag to move the group, or its handles to scale or turn it (Shift keeps proportions). Double-click an item to pick it out alone. Ctrl+Shift+G ungroups.';
@@ -3223,7 +3234,7 @@
   }
 
   FP.interact = {
-    tapHit, measureSnap, measureSnapFrom, outlinePoly, fixtureOutline, labelBox, toWorld,
+    tapHit, measureSnap, measureSnapFrom, outlinePoly, fixtureOutline, labelBox, toWorld, snapTarget: snap,
     init, setTool, beginPlace, endPlace, hintText, mouse, fixtureHandles, snapFixtureToWalls, deleteSelection, rememberStair, rotateStair,
     setLocked, toggleLock, groupSelection, ungroupSelection, selectedGroup, mergeSelection, mergeAllWalls,
     rememberShapeStyle, saveFurniture, SHAPE_TOOLS,

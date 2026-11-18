@@ -192,6 +192,20 @@
   // Save writes back to the file you opened. Save As, or a browser without file access,
   // creates a new file.
   async function save(asNew) {
+    // A phone has nowhere to keep a file link, so a save is handed over like an export: the
+    // share sheet (Files, Drive, email) where the browser allows it, or a download. Chrome on
+    // Android won't share a drawing file at all (it refuses the type), and a save always comes
+    // straight from a tap, so a refusal here means download it instead.
+    if (FP.device && FP.device.phone) {
+      const filename = `${(app.fileName && baseName(app.fileName)) || app.doc.name || 'floorplan'}${EXT}`;
+      // Marked as plain data: Android adds .json to anything marked JSON, and the file would no
+      // longer be a .fplan.
+      const blob = new Blob([serialize()], { type: 'application/octet-stream' });
+      let how = await FP.fileio.deliver(blob, filename);
+      if (how === 'blocked') { FP.fileio.download(blob, filename); how = 'downloaded'; }
+      if (how === 'shared' || how === 'downloaded') { markSaved(filename); return true; }
+      return false;
+    }
     try {
       if (!asNew && app.fileHandle) { await writeHandle(app.fileHandle); return true; }
       if (hasPicker()) {
