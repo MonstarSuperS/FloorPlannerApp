@@ -452,6 +452,7 @@
     const panel = $('walkPanel');
     if (panel.hidden === !on) return;
     panel.hidden = !on;
+    closeMenu();
     document.documentElement.classList.toggle('walking', on);
     walks = [];
     note = null;
@@ -603,6 +604,54 @@
     dot(R, tr.pen, ACCENT, false);
   }
 
+  // ---------- The phone menu ----------
+
+  // While drawing on a phone the top bar is one row, so New, Open, Save, Export, the units and
+  // labels, the theme and the floors are in this menu. Each item works through the button it
+  // stands for, so they behave exactly the same.
+  function menuItem(menu, label, run, on) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'menuitem');
+    b.textContent = label;
+    if (on) b.classList.add('on');
+    b.onclick = () => { closeMenu(); run(); };
+    menu.appendChild(b);
+  }
+
+  function openMenu() {
+    const menu = $('phoneMenu');
+    menu.textContent = '';
+    const click = (id) => () => $(id).click();
+    menuItem(menu, 'New', click('newBtn'));
+    menuItem(menu, 'Open', click('openBtn'));
+    menuItem(menu, 'Save', click('saveBtn'));
+    menuItem(menu, 'Export', click('exportBtn'));
+    menu.appendChild(document.createElement('hr'));
+    menuItem(menu, 'Units and labels', click('viewSheetBtn'), $('topbar').classList.contains('show-view'));
+    menuItem(menu, FP.prefs.theme() === 'dark' ? 'Light mode' : 'Dark mode', click('themeBtn'));
+    menu.appendChild(document.createElement('hr'));
+    const label = document.createElement('p');
+    label.className = 'menu-label';
+    label.textContent = 'Floors';
+    menu.appendChild(label);
+    for (const f of app.doc.floors) {
+      menuItem(menu, f.name, () => app.setActiveFloor(f.id), f.id === app.doc.activeFloorId);
+    }
+    menuItem(menu, '+ Floor', click('addFloor'));
+    menu.hidden = false;
+    $('phoneMenuBtn').setAttribute('aria-expanded', 'true');
+    $('phoneMenuBtn').classList.add('on');
+    const first = menu.querySelector('button');
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  function closeMenu() {
+    $('phoneMenu').hidden = true;
+    $('phoneMenuBtn').setAttribute('aria-expanded', 'false');
+    $('phoneMenuBtn').classList.remove('on');
+  }
+
   // ---------- Setup ----------
 
   function enterDrawing() {
@@ -650,6 +699,11 @@
     $('drawBtn').onclick = enterDrawing;
     $('emptyDrawBtn').onclick = enterDrawing;
     $('viewDoneBtn').onclick = () => app.setMode('view');
+    $('phoneMenuBtn').onclick = (e) => { e.stopPropagation(); if ($('phoneMenu').hidden) openMenu(); else closeMenu(); };
+    document.addEventListener('pointerdown', (e) => {
+      if (!$('phoneMenu').hidden && !$('phoneMenu').contains(e.target) && e.target !== $('phoneMenuBtn')) closeMenu();
+    }, true);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('phoneMenu').hidden) { closeMenu(); $('phoneMenuBtn').focus(); } });
 
     app.on((what) => {
       if (what === 'tool' || what === 'mode') showPanel();

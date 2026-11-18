@@ -408,6 +408,31 @@ html.compact .walk-actions button { flex: none; padding: 4px 12px; font-size: 15
 html.compact.walking #floorBar { padding-bottom: 6px; }
 html.compact.walking #walkPanel { padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
 html.compact .group.compact-only { display: flex !important; }
+/* Drawing on a phone: one row (Done, Undo, Redo, Fit, the menu), and the plan gets the rest. The
+   file buttons, units, theme and floors are in the menu; the Design and floor bars step aside. */
+#topbar { position: relative; }
+html.compact.walking .brand,
+html.compact.walking #fileGroup,
+html.compact.walking #themeBtn,
+html.compact.walking #viewSheetBtn,
+html.compact.walking #designBar,
+html.compact.walking #floorBar { display: none !important; }
+html.compact.walking #topbar.show-view #viewSheetBtn { display: inline-block !important; }
+html.compact.walking #topbar { flex-wrap: wrap; row-gap: 6px; }
+html.compact.walking #topbar button { padding: 6px 10px; }
+html.compact #walkStatus { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+#phoneMenu {
+  position: absolute; right: calc(8px + env(safe-area-inset-right)); top: 100%; z-index: 20;
+  display: flex; flex-direction: column; min-width: 220px; max-width: calc(100vw - 16px); max-height: 70dvh; overflow-y: auto;
+  padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(20, 30, 45, 0.25);
+}
+#phoneMenu button { text-align: left; border: 0; background: transparent; min-height: 44px; padding: 8px 12px; font-size: 16px; border-radius: 6px; }
+#phoneMenu button:hover, #phoneMenu button:focus-visible { background: var(--control-hover); }
+#phoneMenu button.on { color: var(--accent); font-weight: 600; }
+#phoneMenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+#phoneMenu .menu-label { margin: 6px 12px 2px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
 /* Typing with the phone's keyboard: only the status and the box show above it. */
 html.compact.walk-typing #walkPanel .walk-pad { display: none; }
 html.compact.walk-typing #floorBar { display: none; }

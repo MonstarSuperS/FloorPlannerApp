@@ -44,7 +44,7 @@ An interactive 2D floor plan drawing app that runs entirely in your browser. The
 | On a phone: move, zoom, fit | Drag, pinch, double-tap |
 | On a phone: see what something is | Tap it; tap empty space or the close button to dismiss |
 | On a phone: measure | **Measure**, then tap two points; drag an end to adjust. It keeps to 45-degree steps unless **Any angle** is on (or `Alt` is held). `M` and `Esc` with a keyboard |
-| On a phone: draw | **Draw**, tap where the room starts, then use the pad (an arrow or `L`/`R`, the length, **Add**). **abc** switches to the phone's keyboard instead: the pad steps aside so only the box shows above it, and **Pad** (or closing the keyboard) brings the pad back. **Done** goes back to viewing |
+| On a phone: draw | **Draw**, tap where the room starts, then use the pad (an arrow or `L`/`R`, the length, **Add**). While drawing, the top bar is one row (Done, Undo, Redo, Fit); New, Open, Save, Export, units and labels, the theme and the floors are under **⋯**. **abc** switches to the phone's keyboard instead: the pad steps aside so only the box shows above it, and **Pad** (or closing the keyboard) brings the pad back. **Done** goes back to viewing |
 | Draw a rectangle or ellipse to an exact size | Click the first corner (or centre), type width x depth such as `36 x 20` or `90 x 50cm`, and press `Enter` |
 | Finish a polyline | Click its first point to close it; double-click, `Enter` or `Esc` leaves it open. `Backspace` takes back a point |
 | Draw a dimension | Click the start, then the end, then where the dimension line goes (it follows the cursor, showing its distance from the middle of what it measures; snaps to the grid unless `Alt` is held) |

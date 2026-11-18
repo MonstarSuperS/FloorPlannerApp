@@ -6,14 +6,14 @@
   <!-- Only the app's own files may run or style the page; drawings opened from files can never add code. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>FloorPlanner</title>
-  <script src="js/device.js?v=1ffd89d"></script>
-  <script src="js/prefs.js?v=1ffd89d"></script>
-  <link rel="stylesheet" href="css/app.css?v=1ffd89d">
+  <script src="js/device.js?v=b478f30"></script>
+  <script src="js/prefs.js?v=b478f30"></script>
+  <link rel="stylesheet" href="css/app.css?v=b478f30">
 </head>
 <body>
   <header id="topbar">
     <div class="brand"><strong>FloorPlanner</strong><span id="docName"></span></div>
-    <div class="group">
+    <div class="group" id="fileGroup">
       <button id="newBtn" class="edit-only">New</button>
       <button id="openBtn" title="Ctrl+O">Open</button>
       <button id="saveBtn" class="edit-only" title="Ctrl+S">Save</button>
@@ -68,7 +68,9 @@
       <button id="resetBtn" class="full-only" title="Return to the default zoom and origin">Reset</button>
       <button id="themeBtn" class="icon"></button>
       <button id="settingsBtn" class="edit-only full-only">Settings</button>
+      <button id="phoneMenuBtn" class="edit-only compact-only icon" aria-haspopup="menu" aria-expanded="false" aria-controls="phoneMenu" aria-label="More" title="More">&#8943;</button>
     </div>
+    <div id="phoneMenu" role="menu" aria-label="More" hidden></div>
   </header>
 
   <main>
@@ -357,28 +359,28 @@
     </form>
   </dialog>
 
-  <script src="js/units.js?v=1ffd89d"></script>
-  <script src="js/geometry.js?v=1ffd89d"></script>
-  <script src="js/model.js?v=1ffd89d"></script>
-  <script src="js/merge.js?v=1ffd89d"></script>
-  <script src="js/options.js?v=1ffd89d"></script>
-  <script src="js/rooms.js?v=1ffd89d"></script>
-  <script src="js/fixtures.js?v=1ffd89d"></script>
-  <script src="js/shapes.js?v=1ffd89d"></script>
-  <script src="js/render.js?v=1ffd89d"></script>
-  <script src="js/stairs.js?v=1ffd89d"></script>
-  <script src="js/groups.js?v=1ffd89d"></script>
-  <script src="js/describe.js?v=1ffd89d"></script>
-  <script src="js/gestures.js?v=1ffd89d"></script>
-  <script src="js/walk.js?v=1ffd89d"></script>
-  <script src="js/app.js?v=1ffd89d"></script>
-  <script src="js/fileio.js?v=1ffd89d"></script>
-  <script src="js/exporter.js?v=1ffd89d"></script>
-  <script src="js/interact.js?v=1ffd89d"></script>
-  <script src="js/viewer.js?v=1ffd89d"></script>
-  <script src="js/walker.js?v=1ffd89d"></script>
-  <script src="js/ui.js?v=1ffd89d"></script>
-  <script src="js/settings.js?v=1ffd89d"></script>
-  <script src="js/main.js?v=1ffd89d"></script>
+  <script src="js/units.js?v=b478f30"></script>
+  <script src="js/geometry.js?v=b478f30"></script>
+  <script src="js/model.js?v=b478f30"></script>
+  <script src="js/merge.js?v=b478f30"></script>
+  <script src="js/options.js?v=b478f30"></script>
+  <script src="js/rooms.js?v=b478f30"></script>
+  <script src="js/fixtures.js?v=b478f30"></script>
+  <script src="js/shapes.js?v=b478f30"></script>
+  <script src="js/render.js?v=b478f30"></script>
+  <script src="js/stairs.js?v=b478f30"></script>
+  <script src="js/groups.js?v=b478f30"></script>
+  <script src="js/describe.js?v=b478f30"></script>
+  <script src="js/gestures.js?v=b478f30"></script>
+  <script src="js/walk.js?v=b478f30"></script>
+  <script src="js/app.js?v=b478f30"></script>
+  <script src="js/fileio.js?v=b478f30"></script>
+  <script src="js/exporter.js?v=b478f30"></script>
+  <script src="js/interact.js?v=b478f30"></script>
+  <script src="js/viewer.js?v=b478f30"></script>
+  <script src="js/walker.js?v=b478f30"></script>
+  <script src="js/ui.js?v=b478f30"></script>
+  <script src="js/settings.js?v=b478f30"></script>
+  <script src="js/main.js?v=b478f30"></script>
 </body>
 </html>
